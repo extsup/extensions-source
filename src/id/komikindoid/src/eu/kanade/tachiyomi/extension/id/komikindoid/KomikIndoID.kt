@@ -27,7 +27,7 @@ class KomikIndoID : ParsedHttpSource(), ConfigurableSource {
     override val client: OkHttpClient = network.cloudflareClient
     private val dateFormat: SimpleDateFormat = SimpleDateFormat("MMM d, yyyy", Locale.US)
 
-    private val preferences: SharedPreferences by injectLazy()
+    private val preferences: SharedPreferences by lazy { getPreferences() } // Gunakan lazy untuk avoid crash awal
 
     private val resizeService by lazy { preferences.getString(RESIZE_PREF, "")!!.trim() }
 
@@ -191,34 +191,39 @@ class KomikIndoID : ParsedHttpSource(), ConfigurableSource {
     override fun getFilterList() = FilterList()
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
-        EditTextPreference(screen.context).apply {
-            key = DOMAIN_PREF
-            title = "Domain"
-            setDefaultValue(DEFAULT_BASE_URL)
-            dialogTitle = "Domain"
-            dialogMessage = "Ubah domain situs (contoh: https://komikindo.ch)"
-            summary = "%s"
+        try {
+            EditTextPreference(screen.context).apply {
+                key = DOMAIN_PREF
+                title = "Domain"
+                setDefaultValue(DEFAULT_BASE_URL)
+                dialogTitle = "Domain"
+                dialogMessage = "Ubah domain situs (contoh: https://komikindo.ch)"
+                summary = "%s"
 
-            setOnPreferenceChangeListener { _, newValue ->
-                val new = newValue as String
-                preferences.edit().putString(DOMAIN_PREF, new).commit()
-                true
-            }
-        }.also(screen::addPreference)
+                setOnPreferenceChangeListener { _, newValue ->
+                    val new = newValue as String
+                    preferences.edit().putString(DOMAIN_PREF, new).commit()
+                    true
+                }
+            }.also(screen::addPreference)
 
-        EditTextPreference(screen.context).apply {
-            key = RESIZE_PREF
-            title = "Layanan Resize Gambar"
-            setDefaultValue("")
-            dialogTitle = "Layanan Resize"
-            dialogMessage = "Masukkan URL prefix layanan resize, contoh: https://resize.example.com\nAkan digunakan sebagai <layanan>?url=<gambar>"
-            summary = "%s"
+            EditTextPreference(screen.context).apply {
+                key = RESIZE_PREF
+                title = "Layanan Resize Gambar"
+                setDefaultValue("")
+                dialogTitle = "Layanan Resize"
+                dialogMessage = "Masukkan URL prefix layanan resize, contoh: https://resize.example.com\nAkan digunakan sebagai <layanan>?url=<gambar>"
+                summary = "%s"
 
-            setOnPreferenceChangeListener { _, newValue ->
-                val new = newValue as String
-                preferences.edit().putString(RESIZE_PREF, new).commit()
-                true
-            }
-        }.also(screen::addPreference)
+                setOnPreferenceChangeListener { _, newValue ->
+                    val new = newValue as String
+                    preferences.edit().putString(RESIZE_PREF, new).commit()
+                    true
+                }
+            }.also(screen::addPreference)
+        } catch (e: Exception) {
+            // Log error or handle gracefully to avoid crash
+            android.util.Log.e("KomikIndoID", "Error setting up preferences: ${e.message}")
+        }
     }
 }
