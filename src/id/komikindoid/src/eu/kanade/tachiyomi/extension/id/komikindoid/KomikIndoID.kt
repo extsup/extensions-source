@@ -1,13 +1,11 @@
 package eu.kanade.tachiyomi.extension.id.komikindoid
 
 import eu.kanade.tachiyomi.network.GET
-import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.ParsedHttpSource
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.nodes.Document
@@ -15,14 +13,29 @@ import org.jsoup.nodes.Element
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import android.content.SharedPreferences
+import androidx.preference.PreferenceScreen
+import androidx.preference.EditTextPreference
+import eu.kanade.tachiyomi.source.ConfigurableSource
+import uy.kohesive.injekt.injectLazy
 
-class KomikIndoID : ParsedHttpSource() {
+class KomikIndoID : ParsedHttpSource(), ConfigurableSource {
     override val name = "KomikIndoID"
-    override val baseUrl = "https://komikindo.ch"
+    override val baseUrl by lazy { preferences.getString(DOMAIN_PREF, DEFAULT_BASE_URL)!! }
     override val lang = "id"
     override val supportsLatest = true
     override val client: OkHttpClient = network.cloudflareClient
     private val dateFormat: SimpleDateFormat = SimpleDateFormat("MMM d, yyyy", Locale.US)
+
+    private val preferences: SharedPreferences by injectLazy()
+
+    private val resizeService by lazy { preferences.getString(RESIZE_PREF, "")!!.trim() }
+
+    companion object {
+        private const val DOMAIN_PREF = "domain"
+        private const val DEFAULT_BASE_URL = "https://komikindo.ch"
+        private const val RESIZE_PREF = "resize_service"
+    }
 
     // similar/modified theme of "https://bacakomik.my"
     override fun popularMangaRequest(page: Int): Request {
@@ -46,7 +59,8 @@ class KomikIndoID : ParsedHttpSource() {
 
     override fun searchMangaFromElement(element: Element): SManga {
         val manga = SManga.create()
-        manga.thumbnail_url = element.select("div.limit img").attr("src")
+        val thumbUrl = element.select("div.limit img").attr("src")
+        manga.thumbnail_url = getResizedUrl(thumbUrl)
         manga.title = element.select("div.tt h4").text()
         element.select("div.animposx > a").first()!!.let {
             manga.setUrlWithoutDomain(it.attr("href"))
@@ -55,73 +69,9 @@ class KomikIndoID : ParsedHttpSource() {
     }
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        val url = "$baseUrl/daftar-manga/page/$page/".toHttpUrl().newBuilder()
-            .addQueryParameter("title", query)
-        filters.forEach { filter ->
-            when (filter) {
-                is AuthorFilter -> {
-                    url.addQueryParameter("author", filter.state)
-                }
-                is YearFilter -> {
-                    url.addQueryParameter("yearx", filter.state)
-                }
-                is SortFilter -> {
-                    url.addQueryParameter("order", filter.toUriPart())
-                }
-                is OriginalLanguageFilter -> {
-                    filter.state.forEach { lang ->
-                        if (lang.state) {
-                            url.addQueryParameter("type[]", lang.id)
-                        }
-                    }
-                }
-                is FormatFilter -> {
-                    filter.state.forEach { format ->
-                        if (format.state) {
-                            url.addQueryParameter("format[]", format.id)
-                        }
-                    }
-                }
-                is DemographicFilter -> {
-                    filter.state.forEach { demographic ->
-                        if (demographic.state) {
-                            url.addQueryParameter("demografis[]", demographic.id)
-                        }
-                    }
-                }
-                is StatusFilter -> {
-                    filter.state.forEach { status ->
-                        if (status.state) {
-                            url.addQueryParameter("status[]", status.id)
-                        }
-                    }
-                }
-                is ContentRatingFilter -> {
-                    filter.state.forEach { rating ->
-                        if (rating.state) {
-                            url.addQueryParameter("konten[]", rating.id)
-                        }
-                    }
-                }
-                is ThemeFilter -> {
-                    filter.state.forEach { theme ->
-                        if (theme.state) {
-                            url.addQueryParameter("tema[]", theme.id)
-                        }
-                    }
-                }
-                is GenreFilter -> {
-                    filter.state.forEach { genre ->
-                        if (genre.state) {
-                            url.addQueryParameter("genre[]", genre.id)
-                        }
-                    }
-                }
-                else -> {}
-            }
-        }
-        return GET(url.build(), headers)
+        return GET("$baseUrl/daftar-manga/page/$page/?title=$query", headers)
     }
+
     override fun mangaDetailsParse(document: Document): SManga {
         val infoElement = document.select("div.infoanime").first()!!
         val descElement = document.select("div.desc > .entry-content.entry-content-single").first()!!
@@ -144,7 +94,8 @@ class KomikIndoID : ParsedHttpSource() {
         altName?.let {
             manga.description = manga.description + "\n\n$altName"
         }
-        manga.thumbnail_url = document.select(".thumb > img:nth-child(1)").attr("src").substringBeforeLast("?")
+        val thumbUrl = document.select(".thumb > img:nth-child(1)").attr("src").substringBeforeLast("?")
+        manga.thumbnail_url = getResizedUrl(thumbUrl)
         return manga
     }
 
@@ -218,7 +169,8 @@ class KomikIndoID : ParsedHttpSource() {
         val pages = mutableListOf<Page>()
         var i = 0
         document.select("div.img-landmine img").forEach { element ->
-            val url = element.attr("onError").substringAfter("src='").substringBefore("';")
+            var url = element.attr("onError").substringAfter("src='").substringBefore("';")
+            url = getResizedUrl(url)
             i++
             if (url.isNotEmpty()) {
                 pages.add(Page(i, "", url))
@@ -227,163 +179,46 @@ class KomikIndoID : ParsedHttpSource() {
         return pages
     }
 
+    private fun getResizedUrl(url: String): String {
+        if (resizeService.isEmpty() || !url.startsWith("http")) return url
+        // Tambah validasi agar no crash: cek kalau resizeService sudah punya '?' atau tidak
+        val separator = if (resizeService.contains("?")) "&" else "?"
+        return "$resizeService${separator}url=$url"
+    }
+
     override fun imageUrlParse(document: Document): String = throw UnsupportedOperationException()
 
-    override fun getFilterList() = FilterList(
-        SortFilter(),
-        Filter.Header("NOTE: Ignored if using text search!"),
-        AuthorFilter(),
-        YearFilter(),
-        Filter.Separator(),
-        OriginalLanguageFilter(getOriginalLanguage()),
-        FormatFilter(getFormat()),
-        DemographicFilter(getDemographic()),
-        StatusFilter(getStatus()),
-        ContentRatingFilter(getContentRating()),
-        ThemeFilter(getTheme()),
-        GenreFilter(getGenre()),
-    )
+    override fun getFilterList() = FilterList()
 
-    private class AuthorFilter : Filter.Text("Author")
+    override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        EditTextPreference(screen.context).apply {
+            key = DOMAIN_PREF
+            title = "Domain"
+            setDefaultValue(DEFAULT_BASE_URL)
+            dialogTitle = "Domain"
+            dialogMessage = "Ubah domain situs (contoh: https://komikindo.ch)"
+            summary = "%s"
 
-    private class YearFilter : Filter.Text("Year")
+            setOnPreferenceChangeListener { _, newValue ->
+                val new = newValue as String
+                preferences.edit().putString(DOMAIN_PREF, new).commit()
+                true
+            }
+        }.also(screen::addPreference)
 
-    private class SortFilter : UriPartFilter(
-        "Sort By",
-        arrayOf(
-            Pair("A-Z", "title"),
-            Pair("Z-A", "titlereverse"),
-            Pair("Latest Update", "update"),
-            Pair("Latest Added", "latest"),
-            Pair("Popular", "popular"),
-        ),
-    )
+        EditTextPreference(screen.context).apply {
+            key = RESIZE_PREF
+            title = "Layanan Resize Gambar"
+            setDefaultValue("")
+            dialogTitle = "Layanan Resize"
+            dialogMessage = "Masukkan URL prefix layanan resize, contoh: https://resize.example.com\nAkan digunakan sebagai <layanan>?url=<gambar>"
+            summary = "%s"
 
-    private class OriginalLanguage(name: String, val id: String = name) : Filter.CheckBox(name)
-    private class OriginalLanguageFilter(originalLanguage: List<OriginalLanguage>) :
-        Filter.Group<OriginalLanguage>("Original language", originalLanguage)
-    private fun getOriginalLanguage() = listOf(
-        OriginalLanguage("Japanese (Manga)", "Manga"),
-        OriginalLanguage("Chinese (Manhua)", "Manhua"),
-        OriginalLanguage("Korean (Manhwa)", "Manhwa"),
-    )
-
-    private class Format(name: String, val id: String = name) : Filter.CheckBox(name)
-    private class FormatFilter(formatList: List<Format>) :
-        Filter.Group<Format>("Format", formatList)
-    private fun getFormat() = listOf(
-        Format("Black & White", "0"),
-        Format("Full Color", "1"),
-    )
-
-    private class Demographic(name: String, val id: String = name) : Filter.CheckBox(name)
-    private class DemographicFilter(demographicList: List<Demographic>) :
-        Filter.Group<Demographic>("Publication Demographic", demographicList)
-    private fun getDemographic() = listOf(
-        Demographic("Josei", "josei"),
-        Demographic("Seinen", "seinen"),
-        Demographic("Shoujo", "shoujo"),
-        Demographic("Shounen", "shounen"),
-    )
-
-    private class Status(name: String, val id: String = name) : Filter.CheckBox(name)
-    private class StatusFilter(statusList: List<Status>) :
-        Filter.Group<Status>("Status", statusList)
-    private fun getStatus() = listOf(
-        Status("Ongoing", "Ongoing"),
-        Status("Completed", "Completed"),
-    )
-
-    private class ContentRating(name: String, val id: String = name) : Filter.CheckBox(name)
-    private class ContentRatingFilter(contentRating: List<ContentRating>) :
-        Filter.Group<ContentRating>("Content Rating", contentRating)
-    private fun getContentRating() = listOf(
-        ContentRating("Ecchi", "ecchi"),
-        ContentRating("Gore", "gore"),
-        ContentRating("Sexual Violence", "sexual-violence"),
-        ContentRating("Smut", "smut"),
-    )
-
-    private class Theme(name: String, val id: String = name) : Filter.CheckBox(name)
-    private class ThemeFilter(themeList: List<Theme>) :
-        Filter.Group<Theme>("Story Theme", themeList)
-    private fun getTheme() = listOf(
-        Theme("Alien", "aliens"),
-        Theme("Animal", "animals"),
-        Theme("Cooking", "cooking"),
-        Theme("Crossdressing", "crossdressing"),
-        Theme("Delinquent", "delinquents"),
-        Theme("Demon", "demons"),
-        Theme("Ecchi", "ecchi"),
-        Theme("Gal", "gyaru"),
-        Theme("Genderswap", "genderswap"),
-        Theme("Ghost", "ghosts"),
-        Theme("Harem", "harem"),
-        Theme("Incest", "incest"),
-        Theme("Loli", "loli"),
-        Theme("Mafia", "mafia"),
-        Theme("Magic", "magic"),
-        Theme("Martial Arts", "martial-arts"),
-        Theme("Military", "military"),
-        Theme("Monster Girls", "monster-girls"),
-        Theme("Monsters", "monsters"),
-        Theme("Music", "musihc"),
-        Theme("Ninja", "ninja"),
-        Theme("Office Workers", "office-workers"),
-        Theme("Police", "police"),
-        Theme("Post-Apocalyptic", "post-apocalyptic"),
-        Theme("Reincarnation", "reincarnation"),
-        Theme("Reverse Harem", "reverse-harem"),
-        Theme("Samurai", "samurai"),
-        Theme("School Life", "school-life"),
-        Theme("Shota", "shota"),
-        Theme("Smut", "smut"),
-        Theme("Supernatural", "supernatural"),
-        Theme("Survival", "survival"),
-        Theme("Time Travel", "time-travel"),
-        Theme("Traditional Games", "traditional-games"),
-        Theme("Vampires", "vampires"),
-        Theme("Video Games", "video-games"),
-        Theme("Villainess", "villainess"),
-        Theme("Virtual Reality", "virtual-reality"),
-        Theme("Zombies", "zombies"),
-    )
-
-    private class Genre(name: String, val id: String = name) : Filter.CheckBox(name)
-    private class GenreFilter(genreList: List<Genre>) :
-        Filter.Group<Genre>("Genre", genreList)
-    private fun getGenre() = listOf(
-        Genre("Action", "action"),
-        Genre("Adventure", "adventure"),
-        Genre("Comedy", "comedy"),
-        Genre("Crime", "crime"),
-        Genre("Drama", "drama"),
-        Genre("Fantasy", "fantasy"),
-        Genre("Girls Love", "girls-love"),
-        Genre("Harem", "harem"),
-        Genre("Historical", "historical"),
-        Genre("Horror", "horror"),
-        Genre("Isekai", "isekai"),
-        Genre("Magical Girls", "magical-girls"),
-        Genre("Mecha", "mecha"),
-        Genre("Medical", "medical"),
-        Genre("Philosophical", "philosophical"),
-        Genre("Psychological", "psychological"),
-        Genre("Romance", "romance"),
-        Genre("Sci-Fi", "sci-fi"),
-        Genre("Shoujo Ai", "shoujo-ai"),
-        Genre("Shounen Ai", "shounen-ai"),
-        Genre("Slice of Life", "slice-of-life"),
-        Genre("Sports", "sports"),
-        Genre("Superhero", "superhero"),
-        Genre("Thriller", "thriller"),
-        Genre("Tragedy", "tragedy"),
-        Genre("Wuxia", "wuxia"),
-        Genre("Yuri", "yuri"),
-    )
-
-    private open class UriPartFilter(displayName: String, val vals: Array<Pair<String, String>>) :
-        Filter.Select<String>(displayName, vals.map { it.first }.toTypedArray()) {
-        fun toUriPart() = vals[state].second
+            setOnPreferenceChangeListener { _, newValue ->
+                val new = newValue as String
+                preferences.edit().putString(RESIZE_PREF, new).commit()
+                true
+            }
+        }.also(screen::addPreference)
     }
 }
