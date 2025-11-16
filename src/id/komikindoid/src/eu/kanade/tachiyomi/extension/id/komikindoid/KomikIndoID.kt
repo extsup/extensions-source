@@ -28,11 +28,11 @@ class KomikIndoID : ParsedHttpSource(), ConfigurableSource {
     override val supportsLatest = true
     override val client: OkHttpClient = network.cloudflareClient
     private val dateFormat: SimpleDateFormat = SimpleDateFormat("MMM d, yyyy", Locale.US)
-    
+
     private val preferences = Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
 
     override val baseUrl: String
-        get() = preferences.getString("overrideBaseUrl", defaultBaseUrl)!!
+    get() = preferences.getString("overrideBaseUrl", defaultBaseUrl)!!
 
     // similar/modified theme of "https://bacakomik.my"
     override fun popularMangaRequest(page: Int): Request {
@@ -66,8 +66,8 @@ class KomikIndoID : ParsedHttpSource(), ConfigurableSource {
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         val url = "$baseUrl/daftar-manga/page/$page/".toHttpUrl().newBuilder()
-            .addQueryParameter("title", query)
-            .build()
+        .addQueryParameter("title", query)
+        .build()
         return GET(url, headers)
     }
 
@@ -81,11 +81,13 @@ class KomikIndoID : ParsedHttpSource(), ConfigurableSource {
         val artistCleaner = document.select(".infox .spe b:contains(Ilustrator)").text()
         manga.artist = document.select(".infox .spe span:contains(Ilustrator)").text().substringAfter(artistCleaner)
         val genres = mutableListOf<String>()
-        infoElement.select(".infox .genre-info a, .infox .spe span:contains(Grafis:) a, .infox .spe span:contains(Tema:) a, .infox .spe span:contains(Konten:) a").forEach { element ->
+        infoElement.select(".infox .genre-info a, .infox .spe span:contains(Grafis:) a, .infox .spe span:contains(Tema:) a, .infox .spe span:contains(Konten:) a").forEach {
+            element ->
             val genre = element.text()
             genres.add(genre)
         }
-        infoElement.select(".infox .spe span:contains(Jenis Komik:) a").forEach { element ->
+        infoElement.select(".infox .spe span:contains(Jenis Komik:) a").forEach {
+            element ->
             val genre = element.text()
             genres.add(genre)
         }
@@ -174,17 +176,22 @@ class KomikIndoID : ParsedHttpSource(), ConfigurableSource {
     override fun pageListParse(document: Document): List<Page> {
         val service = preferences.getString("resize_service_url", "") ?: ""
         return document.select("img")
-            .mapIndexedNotNull { i, img ->
-                val src = img.attr("src").trim()
-                if (src.isBlank()) {
-                    null
-                } else {
-                    val finalUrl = if (service.isEmpty()) src else service + src
-                    Page(i, "", finalUrl)
-                }
+        .mapIndexedNotNull {
+            i, img ->
+            val src = img.attr("src").trim()
+            if (src.isBlank()) {
+                null
+            } else {
+                val finalUrl = if (service.isEmpty()) src else service + src
+                Page(i, "", finalUrl)
             }
+        }
     }
-    
+
+    override fun imageUrlParse(document: Document): String {
+        throw UnsupportedOperationException("Not used")
+    }
+
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         val resizeServicePref = EditTextPreference(screen.context).apply {
             key = "resize_service_url"
@@ -203,7 +210,8 @@ class KomikIndoID : ParsedHttpSource(), ConfigurableSource {
             dialogTitle = "Update domain untuk ekstensi ini"
             dialogMessage = "Original: $defaultBaseUrl"
 
-            setOnPreferenceChangeListener { _, newValue ->
+            setOnPreferenceChangeListener {
+                _, newValue ->
                 val newUrl = newValue as String
                 preferences.edit().putString("overrideBaseUrl", newUrl).apply()
                 summary = "Current domain: $newUrl"
