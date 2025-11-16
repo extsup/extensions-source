@@ -1,6 +1,11 @@
 package eu.kanade.tachiyomi.extension.id.komikindoid
 
+import android.app.Application
+import androidx.preference.EditTextPreference
+import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.source.ConfigurableSource
+import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
@@ -10,17 +15,24 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
-class KomikIndoID : ParsedHttpSource() {
+class KomikIndoID : ParsedHttpSource(), ConfigurableSource {
     override val name = "KomikIndoID"
-    override val baseUrl = "https://komikindo.ch"
+    private val defaultBaseUrl = "https://komikindo.ch"
     override val lang = "id"
     override val supportsLatest = true
     override val client: OkHttpClient = network.cloudflareClient
     private val dateFormat: SimpleDateFormat = SimpleDateFormat("MMM d, yyyy", Locale.US)
+    
+    private val preferences = Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
+
+    override val baseUrl: String
+        get() = preferences.getString("overrideBaseUrl", defaultBaseUrl)!!
 
     // similar/modified theme of "https://bacakomik.my"
     override fun popularMangaRequest(page: Int): Request {
@@ -52,12 +64,13 @@ class KomikIndoID : ParsedHttpSource() {
         return manga
     }
 
-    override fun searchMangaRequest(page: Int, query: String): Request {
+    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         val url = "$baseUrl/daftar-manga/page/$page/".toHttpUrl().newBuilder()
-        .addQueryParameter("title", query)
-        .build()
+            .addQueryParameter("title", query)
+            .build()
         return GET(url, headers)
     }
+
     override fun mangaDetailsParse(document: Document): SManga {
         val infoElement = document.select("div.infoanime").first()!!
         val descElement = document.select("div.desc > .entry-content.entry-content-single").first()!!
@@ -68,13 +81,11 @@ class KomikIndoID : ParsedHttpSource() {
         val artistCleaner = document.select(".infox .spe b:contains(Ilustrator)").text()
         manga.artist = document.select(".infox .spe span:contains(Ilustrator)").text().substringAfter(artistCleaner)
         val genres = mutableListOf<String>()
-        infoElement.select(".infox .genre-info a, .infox .spe span:contains(Grafis:) a, .infox .spe span:contains(Tema:) a, .infox .spe span:contains(Konten:) a").forEach {
-            element ->
+        infoElement.select(".infox .genre-info a, .infox .spe span:contains(Grafis:) a, .infox .spe span:contains(Tema:) a, .infox .spe span:contains(Konten:) a").forEach { element ->
             val genre = element.text()
             genres.add(genre)
         }
-        infoElement.select(".infox .spe span:contains(Jenis Komik:) a").forEach {
-            element ->
+        infoElement.select(".infox .spe span:contains(Jenis Komik:) a").forEach { element ->
             val genre = element.text()
             genres.add(genre)
         }
@@ -161,16 +172,44 @@ class KomikIndoID : ParsedHttpSource() {
     }
 
     override fun pageListParse(document: Document): List<Page> {
-        val pages = mutableListOf<Page>()
-        var i = 0
-        document.select("div.img-landmine img").forEach {
-            element ->
-            val url = element.attr("onError").substringAfter("src='").substringBefore("';")
-            i++
-            if (url.isNotEmpty()) {
-                pages.add(Page(i, "", url))
+        val service = preferences.getString("resize_service_url", "") ?: ""
+        return document.select("img")
+            .mapIndexedNotNull { i, img ->
+                val src = img.attr("src").trim()
+                if (src.isBlank()) {
+                    null
+                } else {
+                    val finalUrl = if (service.isEmpty()) src else service + src
+                    Page(i, "", finalUrl)
+                }
+            }
+    }
+    
+    override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        val resizeServicePref = EditTextPreference(screen.context).apply {
+            key = "resize_service_url"
+            title = "Resize Service URL (Pages)"
+            summary = "Masukkan URL layanan resize gambar untuk halaman (page list)."
+            setDefaultValue(null)
+            dialogTitle = "Resize Service URL"
+        }
+        screen.addPreference(resizeServicePref)
+
+        val baseUrlPref = EditTextPreference(screen.context).apply {
+            key = "overrideBaseUrl"
+            title = "Ubah Domain"
+            summary = "Update domain untuk ekstensi ini"
+            setDefaultValue(defaultBaseUrl)
+            dialogTitle = "Update domain untuk ekstensi ini"
+            dialogMessage = "Original: $defaultBaseUrl"
+
+            setOnPreferenceChangeListener { _, newValue ->
+                val newUrl = newValue as String
+                preferences.edit().putString("overrideBaseUrl", newUrl).apply()
+                summary = "Current domain: $newUrl"
+                true
             }
         }
-        return pages
+        screen.addPreference(baseUrlPref)
     }
 }
