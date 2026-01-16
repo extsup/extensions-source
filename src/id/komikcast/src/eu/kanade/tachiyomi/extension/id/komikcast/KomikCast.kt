@@ -14,164 +14,314 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.online.ParsedHttpSource
 import eu.kanade.tachiyomi.util.asJsoup
-import okhttp3.Headers
-import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
-import java.io.IOException
-import java.text.ParseException
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import java.text.SimpleDateFormat
-import java.util.Date
+import java.util.Calendar
 import java.util.Locale
-import java.util.concurrent.TimeUnit
 
-class KomikCast : ConfigurableSource, ParsedHttpSource() {
-    override val name: String = "KomikCast"
-    override val baseUrl: String = "https://komikcast.com"
-    override val lang: String = "id"
-    override val supportsLatest: Boolean = true
+class KomikCast : ParsedHttpSource(), ConfigurableSource {
+    override val name = "KomikCast"
+    override val lang = "id"
+    override val supportsLatest = true
 
-    // Rate limit dan client
-    override val client: OkHttpClient = network.client.newBuilder()
-        .rateLimit(2)
-        .readTimeout(30, TimeUnit.SECONDS)
+    // Client dengan rate limit
+    override val client: OkHttpClient = network.cloudflareClient.newBuilder()
+        .rateLimit(1)
         .build()
 
-    override fun headersBuilder(): Headers.Builder = super.headersBuilder()
-        .add("Referer", baseUrl)
-        .add("User-Agent", "Mozilla/5.0 (Android)")
+    private val preferences = Injekt.get<Application>().getSharedPreferences("source_$id", 0)
+    override var baseUrl: String = preferences.getString(BASE_URL_PREF, "https://komikcast03.com")!!
 
-    // ------------------ Popular / Latest / Search ------------------
-    override fun popularMangaRequest(page: Int): Request {
-        val url = HttpUrl.parse("$baseUrl/manga")?.newBuilder()
-            ?.addQueryParameter("page", page.toString())
-            ?.build() ?: throw IllegalStateException("Invalid URL")
-        return GET(url.toString(), headers)
+    private fun ResizeGambar(): String? {
+        return preferences.getString("resize_url_gambar", null)
     }
 
-    override fun popularMangaSelector(): String = "div.listupd > article"
-
-    override fun popularMangaFromElement(element: Element): SManga {
-        val manga = SManga.create()
-        val titleEl = element.selectFirst("h3.entry-title a")
-        manga.title = titleEl?.text()?.trim() ?: ""
-        manga.setUrlWithoutDomain(titleEl?.attr("href") ?: "")
-        val img = element.selectFirst("img")
-        manga.thumbnail_url = img?.attr("data-src") ?: img?.attr("src")
-        return manga
+    private fun ResizeCover(originalUrl: String): String {
+        return "http://LayananGambarCover$originalUrl"
     }
 
-    override fun popularMangaNextPageSelector(): String? = "a.next"
+    // Request untuk daftar populer
+    override fun popularMangaRequest(page: Int): Request =
+        GET("$baseUrl/komik/?orderby=update&page=$page", headers)
 
+    // Request untuk update terbaru
     override fun latestUpdatesRequest(page: Int): Request {
-        val url = HttpUrl.parse(baseUrl)?.newBuilder()
-            ?.addPathSegment("page")
-            ?.addPathSegment(page.toString())
-            ?.build() ?: throw IllegalStateException("Invalid URL")
-        return GET(url.toString(), headers)
+        return GET("$baseUrl/komik/page/$page/?&orderby=update", headers)
     }
 
-    override fun latestUpdatesSelector(): String = "div.listupd > article"
-
-    override fun latestUpdatesFromElement(element: Element): SManga = popularMangaFromElement(element)
-
-    override fun latestUpdatesNextPageSelector(): String? = "a.next"
-
+    // Request pencarian
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        val url = HttpUrl.parse("$baseUrl/page/1/")?.newBuilder()
-            ?.addQueryParameter("s", query)
-            ?.build() ?: throw IllegalStateException("Invalid URL")
-        return GET(url.toString(), headers)
+        val url = "$baseUrl/?s=$query&page=$page".toHttpUrl().newBuilder().build()
+        return GET(url, headers)
     }
 
-    override fun searchMangaSelector(): String = popularMangaSelector()
-    override fun searchMangaFromElement(element: Element): SManga = popularMangaFromElement(element)
-    override fun searchMangaNextPageSelector(): String? = popularMangaNextPageSelector()
+    // Selector
+    override fun popularMangaSelector() = "div.list-update_item"
+    override fun latestUpdatesSelector() = popularMangaSelector()
+    override fun searchMangaSelector() = popularMangaSelector()
 
-    // ------------------ Manga details / chapters / pages ------------------
-    override fun mangaDetailsRequest(mangaUrl: String): Request = GET(baseUrl + mangaUrl, headers)
+    override fun popularMangaFromElement(element: Element): SManga = searchMangaFromElement(element)
+    override fun latestUpdatesFromElement(element: Element): SManga = searchMangaFromElement(element)
 
-    override fun mangaDetailsParse(document: Document): SManga {
+    override fun searchMangaFromElement(element: Element): SManga {
         val manga = SManga.create()
-        manga.title = document.selectFirst("h1.entry-title")?.text()?.trim() ?: ""
-        manga.description = document.selectFirst("div.entry-content p")?.text()?.trim() ?: ""
-        manga.thumbnail_url = document.selectFirst("div.thumb img")?.attr("src")
+        manga.thumbnail_url = element.select("img").attr("abs:src")?.let { ResizeCover(it) }
+        manga.title = element.select("h3.title").text()
+                .substringBefore("(").trim()
+        element.select("div.list-update_item a").first()!!.let {
+            manga.setUrlWithoutDomain(it.attr("href"))
+        }
         return manga
     }
 
-    override fun chapterListSelector(): String = "ul.lst > li"
+    override fun popularMangaNextPageSelector(): String = "a.next.page-numbers"
+    override fun latestUpdatesNextPageSelector(): String = popularMangaNextPageSelector()
+    override fun searchMangaNextPageSelector(): String = popularMangaNextPageSelector()
 
-    override fun chapterFromElement(element: Element): SChapter {
-        val chapter = SChapter.create()
-        val a = element.selectFirst("a")
-        chapter.setUrlWithoutDomain(a?.attr("href") ?: "")
-        chapter.name = a?.text()?.trim() ?: ""
-        val dateText = element.selectFirst("span.date")?.text()?.trim() ?: ""
-        chapter.date_upload = parseChapterDate(dateText)
-        return chapter
-    }
+    // Parsing khusus untuk update terbaru
+    override fun latestUpdatesParse(response: Response): MangasPage {
+        val document = response.asJsoup()
+        val rawList = preferences.getString(MANGA_WHITELIST_PREF, "")
+        val allowedManga = rawList
+            ?.split(",")
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?: emptyList()
 
-    override fun pageListRequest(chapter: SChapter): Request = GET(baseUrl + chapter.url, headers)
-
-    override fun pageListParse(document: Document): List<Page> {
-        val pages = mutableListOf<Page>()
-        val imgs = document.select("div.reading-content img")
-        imgs.forEachIndexed { i, img ->
-            val url = img.attr("data-src").ifEmpty { img.attr("src") }
-            pages.add(Page(i, document.location(), url))
-        }
-        return pages
-    }
-
-    override fun imageUrlRequest(page: Page): Request = GET(page.imageUrl!!, headers)
-
-    override fun imageUrlParse(response: Response): String = response.request().url().toString()
-
-    // ------------------ Utilities ------------------
-    // PASTIKAN HANYA ADA SATU fungsi parseChapterDate di file ini
-    private fun parseChapterDate(date: String): Long {
-        if (date.isBlank()) return 0L
-
-        // Coba beberapa format yang umum dipakai di situs Indonesia/Internasional
-        val formats = arrayOf(
-            "dd MMM yyyy",
-            "dd MMMM yyyy",
-            "d MMM yyyy",
-            "yyyy-MM-dd",
-            "dd/MM/yyyy"
-        )
-
-        for (fmt in formats) {
-            try {
-                val sdf = SimpleDateFormat(fmt, Locale("id"))
-                sdf.isLenient = true
-                val d: Date? = sdf.parse(date)
-                if (d != null) return d.time
-            } catch (e: ParseException) {
-                // lanjut ke format berikutnya
-            } catch (e: Exception) {
-                // ignore
+        val mangas = document.select(latestUpdatesSelector()).mapNotNull { element ->
+            val typeText = element.selectFirst("span.type")?.text()?.trim() ?: return@mapNotNull null
+            when {
+                typeText.equals("Manhwa", true) || typeText.equals("Manhua", true) ->
+                    searchMangaFromElement(element)
+                typeText.equals("Manga", true) -> {
+                    val titleText = element.selectFirst("h3.title")?.text()?.trim()
+                    if (titleText != null && allowedManga.any { it.equals(titleText, true) }) {
+                        searchMangaFromElement(element)
+                    } else null
+                }
+                else -> null
             }
         }
-
-        // Jika masih gagal, kembalikan 0
-        return 0L
+        val hasNext = document.select(latestUpdatesNextPageSelector()).firstOrNull() != null
+        return MangasPage(mangas, hasNext)
     }
 
-    // ------------------ Configurable source (contoh sederhana) ------------------
-    override fun setupPreferenceScreen(screen: PreferenceScreen) {
-        val pref = EditTextPreference(screen.context).apply {
-            key = "komikcast_custom_base"
-            title = "Custom base URL (opsional)"
-            summary = "Ganti base URL jika mirror berbeda"
-            dialogTitle = "Base URL KomikCast"
-            setDefaultValue(baseUrl)
+    // Parsing detail manga
+    override fun mangaDetailsParse(document: Document): SManga {
+        val manga = SManga.create()
+        val info = document.selectFirst("div.komik_info") ?: return manga.apply { title = "Judul Tidak Diketahui" }
+
+        // Penanganan judul
+        val rawTitle = info.selectFirst("h1.komik_info-content-body-title")?.text().orEmpty()
+        manga.title = rawTitle
+            .replace("bahasa indonesia", "", ignoreCase = true)
+            .substringBeforeLast("(").trim()
+            .ifEmpty { "Judul Tidak Diketahui" }
+
+        // Penanganan gambar
+        manga.thumbnail_url = document.select("div.komik_info-cover-image img").attr("abs:src")?.let { ResizeCover(it) }
+
+        // Penanganan author dan artist
+        val parts = info.selectFirst("span.komik_info-content-info:has(b:contains(Author))")
+            ?.ownText().orEmpty().split(",")
+        manga.author = parts.getOrNull(0)?.trim().orEmpty()
+        manga.artist = parts.getOrNull(1)?.trim().orEmpty()
+
+        // Penanganan deskripsi
+        val synopsis = info.select("div.komik_info-description-sinopsis p").eachText().joinToString("\n\n")
+        val altTitle = info.selectFirst("span.komik_info-content-native")?.text().orEmpty().trim()
+        manga.description = buildString {
+            append(synopsis)
+            if (altTitle.isNotEmpty()) append("\n\nAlternative Title: $altTitle")
         }
-        screen.addPreference(pref)
+
+        // Penanganan genre
+        val genres = info.select("span.komik_info-content-genre a.genre-item").eachText().toMutableList()
+        info.selectFirst("span.komik_info-content-info-type a")?.text()?.takeIf(String::isNotBlank)?.let { genres.add(it) }
+        manga.genre = genres.joinToString(", ")
+
+        // Penanganan status
+        val statusText = info.selectFirst("span.komik_info-content-info:has(b:contains(Status))")
+            ?.text()?.replaceFirst("Status:", "", true).orEmpty().trim()
+        manga.status = when {
+            statusText.contains("Ongoing", true) -> SManga.ONGOING
+            statusText.contains("Completed", true) -> SManga.COMPLETED
+            else -> SManga.UNKNOWN
+        }
+
+        return manga
     }
 
-    override fun getFilterList(): FilterList = FilterList()
+    // Parsing daftar chapter
+    override fun chapterListSelector() = "div.komik_info-chapters li"
+    override fun chapterFromElement(element: Element) = SChapter.create().apply {
+        setUrlWithoutDomain(element.selectFirst("a")!!.attr("href"))
+        name = element.select(".chapter-link-item").text()
+
+        // Prioritaskan ISO timestamp yang tersembunyi
+        val createdAtIso = element.selectFirst(".chapter-link-time .chapter-created-at")
+            ?.text()
+            ?.trim()
+
+        date_upload = if (!createdAtIso.isNullOrEmpty()) {
+            parseIsoDate(createdAtIso)
+        } else {
+            // fallback: hanya teks visible tanpa span tersembunyi
+            val visibleTime = element.selectFirst(".chapter-link-time")?.ownText()?.trim().orEmpty()
+            parseChapterDate(visibleTime)
+        }
+    }
+
+    // Untuk parsing ISO timestamp seperti: 2022-02-13T06:21:18+07:00
+    private fun parseIsoDate(date: String?): Long {
+        if (date.isNullOrBlank()) return 0L
+        return try {
+            // Coba tanpa milidetik
+            val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
+            sdf.parse(date)?.time ?: run {
+                // Coba dengan milidetik jika ada fractional seconds
+                val sdfMs = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US)
+                sdfMs.parse(date)?.time ?: 0L
+            }
+        } catch (e: Exception) {
+            0L
+        }
+    }
+
+    // Untuk parsing teks seperti "1 month ago", "2 jam yang lalu", "just now", atau "12 Des 2025"
+    private val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale("id"))
+
+    private fun parseChapterDate(date: String): Long {
+        val txt = date.trim().lowercase(Locale.US)
+
+        if (txt.isEmpty()) return 0L
+
+        // beberapa varian cepat
+        if (txt.contains("just now") || txt == "now" || txt.contains("baru saja") || txt == "baru") {
+            return System.currentTimeMillis()
+        }
+
+        // cari angka dalam teks (mis. "1 month ago" -> 1). jika tidak ada, cek 'a'/'one'/'an'
+        val number = Regex("""\d+""").find(txt)?.value?.toIntOrNull()
+            ?: if (txt.startsWith("a ") || txt.startsWith("one ") || txt.startsWith("an ") || txt.startsWith("sebuah ") ) 1 else null
+
+        val cal = Calendar.getInstance()
+        when {
+            txt.contains("min") || txt.contains("menit") -> {
+                val v = number ?: 1
+                cal.add(Calendar.MINUTE, -v)
+                return cal.timeInMillis
+            }
+            txt.contains("hour") || txt.contains("jam") -> {
+                val v = number ?: 1
+                cal.add(Calendar.HOUR_OF_DAY, -v)
+                return cal.timeInMillis
+            }
+            txt.contains("day") || txt.contains("hari") -> {
+                val v = number ?: 1
+                cal.add(Calendar.DATE, -v)
+                return cal.timeInMillis
+            }
+            txt.contains("week") || txt.contains("minggu") -> {
+                val v = number ?: 1
+                cal.add(Calendar.DATE, -v * 7)
+                return cal.timeInMillis
+            }
+            txt.contains("month") || txt.contains("bulan") -> {
+                val v = number ?: 1
+                cal.add(Calendar.MONTH, -v)
+                return cal.timeInMillis
+            }
+            txt.contains("year") || txt.contains("tahun") -> {
+                val v = number ?: 1
+                cal.add(Calendar.YEAR, -v)
+                return cal.timeInMillis
+            }
+            else -> {
+                // fallback: coba parse format tanggal seperti "12 Des 2025"
+                return try {
+                    dateFormat.parse(date)?.time ?: 0L
+                } catch (e: Exception) {
+                    0L
+                }
+            }
+        }
+    }
+
+    // page
+    override fun pageListParse(document: Document): List<Page> {
+        val resizeUrlGambar = ResizeGambar()
+
+        val allImages = document.select("div.main-reading-area img.size-full")
+
+        val filteredImages = allImages.filter { img ->
+            val src = img.attr("src")
+            !src.endsWith("999.jpg", ignoreCase = true)
+        }
+
+        val finalImages = if (filteredImages.isEmpty()) allImages else filteredImages
+
+        return finalImages.mapIndexed { i, img ->
+            val imageUrl = img.attr("src")
+            val finalUrl = if (resizeUrlGambar != null) resizeUrlGambar + imageUrl else imageUrl
+            Page(i, document.location(), finalUrl)
+        }
+    }
+
+    override fun imageUrlParse(document: Document): String = throw UnsupportedOperationException()
+    override fun imageRequest(page: Page): Request =
+        GET(page.imageUrl!!, headersBuilder().set("Referer", baseUrl).build())
+
+    override fun getFilterList(): FilterList = FilterList(Filter.Header("No filters"))
+
+    // Pengaturan sumber (Preferences)
+    override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        screen.addPreference(EditTextPreference(screen.context).apply {
+            key = RESIZE_URL_PREF
+            title = RESIZE_URL_PREF_TITLE
+            dialogTitle = RESIZE_URL_PREF_TITLE
+            dialogMessage = "Layanan Resize"
+            summary = "Gunakan layanan resize URL gambar"
+            setDefaultValue("")
+        })
+        screen.addPreference(EditTextPreference(screen.context).apply {
+            key = BASE_URL_PREF
+            title = BASE_URL_PREF_TITLE
+            summary = BASE_URL_PREF_SUMMARY
+            setDefaultValue(baseUrl)
+            dialogTitle = BASE_URL_PREF_TITLE
+            dialogMessage = "Original: $baseUrl"
+            setOnPreferenceChangeListener { _, new ->
+                baseUrl = new as String
+                preferences.edit().putString(BASE_URL_PREF, baseUrl).apply()
+                summary = "Current domain: $baseUrl"
+                true
+            }
+        })
+        screen.addPreference(EditTextPreference(screen.context).apply {
+            key = MANGA_WHITELIST_PREF
+            title = MANGA_WHITELIST_PREF_TITLE
+            dialogTitle = MANGA_WHITELIST_PREF_TITLE
+            dialogMessage = "Masukkan judul Manga yang mau ditampilkan, dipisah koma"
+            summary = "Tetap tampilkan manga ini"
+            setDefaultValue("")
+        })
+    }
+
+    companion object {
+        private const val BASE_URL_PREF_TITLE = "Base URL override"
+        private const val BASE_URL_PREF = "overrideBaseUrl"
+        private const val BASE_URL_PREF_SUMMARY = "Override the base URL"
+        private const val MANGA_WHITELIST_PREF = "manga_whitelist"
+        private const val MANGA_WHITELIST_PREF_TITLE = "Tampilkan Komik"
+        private const val RESIZE_URL_PREF = "resize_url_gambar"
+        private const val RESIZE_URL_PREF_TITLE = "Layanan resize"
+    }
 }
