@@ -130,8 +130,10 @@ class KomikCast : MangaThemesia("Komik Cast", "https://komikcast03.com", "id", "
         }
     }
 
-    // NOTE: override agar tidak menimpa member supertype dan visibilitas tetap public
-    override val dateFormat: SimpleDateFormat = SimpleDateFormat("dd MMM yyyy", Locale("id"))
+    // NOTE:
+    // MangaThemesia sudah mendefinisikan `dateFormat` sebagai final (tidak 'open'), jadi kita
+    // tidak bisa meng-override-nya. Untuk menghindari konflik dan tetap menjaga thread-safety,
+    // kita buat instance SimpleDateFormat lokal setiap kali perlu mem-parse format "dd MMM yyyy".
 
     private fun parseChapterDate(date: String): Long {
         val txt = date.trim().lowercase(Locale.US)
@@ -182,7 +184,7 @@ class KomikCast : MangaThemesia("Komik Cast", "https://komikcast03.com", "id", "
             else -> {
                 // fallback: coba parse format tanggal seperti "12 Des 2025"
                 return try {
-                    dateFormat.parse(date)?.time ?: 0L
+                    SimpleDateFormat("dd MMM yyyy", Locale("id")).parse(date)?.time ?: 0L
                 } catch (e: Exception) {
                     0L
                 }
