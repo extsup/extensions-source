@@ -93,46 +93,97 @@ class KomikCast : MangaThemesia("Komik Cast", "https://komikcast03.com", "id", "
         }
     }
 
+        // Parsing daftar chapter
     override fun chapterListSelector() = "div.komik_info-chapters li"
-
     override fun chapterFromElement(element: Element) = SChapter.create().apply {
-        val urlElements = element.select("a")
-        setUrlWithoutDomain(urlElements.attr("href"))
+        setUrlWithoutDomain(element.selectFirst("a")!!.attr("href"))
         name = element.select(".chapter-link-item").text()
-        date_upload = parseChapterDate2(element.select(".chapter-link-time").text())
+
+        // Prioritaskan ISO timestamp yang tersembunyi
+        val createdAtIso = element.selectFirst(".chapter-link-time .chapter-created-at")
+            ?.text()
+            ?.trim()
+
+        date_upload = if (!createdAtIso.isNullOrEmpty()) {
+            parseIsoDate(createdAtIso)
+        } else {
+            // fallback: hanya teks visible tanpa span tersembunyi
+            val visibleTime = element.selectFirst(".chapter-link-time")?.ownText()?.trim().orEmpty()
+            parseChapterDate(visibleTime)
+        }
     }
 
-    private fun parseChapterDate2(date: String): Long {
-        return if (date.endsWith("ago")) {
-            val value = date.split(' ')[0].toInt()
-            when {
-                "min" in date -> Calendar.getInstance().apply {
-                    add(Calendar.MINUTE, -value)
-                }.timeInMillis
-                "hour" in date -> Calendar.getInstance().apply {
-                    add(Calendar.HOUR_OF_DAY, -value)
-                }.timeInMillis
-                "day" in date -> Calendar.getInstance().apply {
-                    add(Calendar.DATE, -value)
-                }.timeInMillis
-                "week" in date -> Calendar.getInstance().apply {
-                    add(Calendar.DATE, -value * 7)
-                }.timeInMillis
-                "month" in date -> Calendar.getInstance().apply {
-                    add(Calendar.MONTH, -value)
-                }.timeInMillis
-                "year" in date -> Calendar.getInstance().apply {
-                    add(Calendar.YEAR, -value)
-                }.timeInMillis
-                else -> {
+    // Untuk parsing ISO timestamp seperti: 2022-02-13T06:21:18+07:00
+    private fun parseIsoDate(date: String?): Long {
+        if (date.isNullOrBlank()) return 0L
+        return try {
+            // Coba tanpa milidetik
+            val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
+            sdf.parse(date)?.time ?: run {
+                // Coba dengan milidetik jika ada fractional seconds
+                val sdfMs = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US)
+                sdfMs.parse(date)?.time ?: 0L
+            }
+        } catch (e: Exception) {
+            0L
+        }
+    }
+
+    private val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale("id"))
+
+    private fun parseChapterDate(date: String): Long {
+        val txt = date.trim().lowercase(Locale.US)
+
+        if (txt.isEmpty()) return 0L
+
+        // beberapa varian cepat
+        if (txt.contains("just now") || txt == "now" || txt.contains("baru saja") || txt == "baru") {
+            return System.currentTimeMillis()
+        }
+
+        // cari angka dalam teks (mis. "1 month ago" -> 1). jika tidak ada, cek 'a'/'one'/'an'
+        val number = Regex("""\d+""").find(txt)?.value?.toIntOrNull()
+            ?: if (txt.startsWith("a ") || txt.startsWith("one ") || txt.startsWith("an ") || txt.startsWith("sebuah ") ) 1 else null
+
+        val cal = Calendar.getInstance()
+        when {
+            txt.contains("min") || txt.contains("menit") -> {
+                val v = number ?: 1
+                cal.add(Calendar.MINUTE, -v)
+                return cal.timeInMillis
+            }
+            txt.contains("hour") || txt.contains("jam") -> {
+                val v = number ?: 1
+                cal.add(Calendar.HOUR_OF_DAY, -v)
+                return cal.timeInMillis
+            }
+            txt.contains("day") || txt.contains("hari") -> {
+                val v = number ?: 1
+                cal.add(Calendar.DATE, -v)
+                return cal.timeInMillis
+            }
+            txt.contains("week") || txt.contains("minggu") -> {
+                val v = number ?: 1
+                cal.add(Calendar.DATE, -v * 7)
+                return cal.timeInMillis
+            }
+            txt.contains("month") || txt.contains("bulan") -> {
+                val v = number ?: 1
+                cal.add(Calendar.MONTH, -v)
+                return cal.timeInMillis
+            }
+            txt.contains("year") || txt.contains("tahun") -> {
+                val v = number ?: 1
+                cal.add(Calendar.YEAR, -v)
+                return cal.timeInMillis
+            }
+            else -> {
+                // fallback: coba parse format tanggal seperti "12 Des 2025"
+                return try {
+                    dateFormat.parse(date)?.time ?: 0L
+                } catch (e: Exception) {
                     0L
                 }
-            }
-        } else {
-            try {
-                dateFormat.parse(date)?.time ?: 0
-            } catch (_: Exception) {
-                0L
             }
         }
     }
