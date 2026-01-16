@@ -14,6 +14,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
@@ -93,7 +94,7 @@ class KomikCast : MangaThemesia("Komik Cast", "https://komikcast03.com", "id", "
         }
     }
 
-        // Parsing daftar chapter
+    // Parsing daftar chapter
     override fun chapterListSelector() = "div.komik_info-chapters li"
     override fun chapterFromElement(element: Element) = SChapter.create().apply {
         setUrlWithoutDomain(element.selectFirst("a")!!.attr("href"))
@@ -129,7 +130,8 @@ class KomikCast : MangaThemesia("Komik Cast", "https://komikcast03.com", "id", "
         }
     }
 
-    private val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale("id"))
+    // NOTE: override agar tidak menimpa member supertype dan visibilitas tetap public
+    override val dateFormat: SimpleDateFormat = SimpleDateFormat("dd MMM yyyy", Locale("id"))
 
     private fun parseChapterDate(date: String): Long {
         val txt = date.trim().lowercase(Locale.US)
