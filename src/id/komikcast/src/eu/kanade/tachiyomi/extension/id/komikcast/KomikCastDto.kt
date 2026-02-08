@@ -55,16 +55,18 @@ data class SeriesDetailResponse(
 
 @Serializable
 data class ChapterItem(
+    val id: Int? = null,
     val data: ChapterData,
     val createdAt: String? = null,
     val updatedAt: String? = null,
-    @SerialName("dataImages") val dataImages: Map<String, String>? = null,
 )
 
 @Serializable
 data class ChapterData(
+    val slug: String? = null,
     val index: Float,
     val title: String? = null,
+    val images: List<String>? = null,  // ← Field images untuk chapter detail
 )
 
 @Serializable
@@ -74,6 +76,8 @@ data class ChapterListResponse(
 
 @Serializable
 data class ChapterDetailResponse(
+    val status: Int? = null,
+    val message: String? = null,
     val data: ChapterItem,
 )
 
