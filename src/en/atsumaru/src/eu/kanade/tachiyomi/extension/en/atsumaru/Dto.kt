@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.extension.en.atsumaru
 
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
+import keiyoushi.utils.tryParse
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
@@ -9,9 +10,10 @@ import kotlinx.serialization.json.JsonNames
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonPrimitive
-import java.text.ParseException
+import kotlinx.serialization.json.longOrNull
 import java.text.SimpleDateFormat
 import java.util.Locale
+import java.util.TimeZone
 
 @Serializable
 class BrowseMangaDto(
@@ -30,9 +32,7 @@ class SearchResultsDto(
     val hits: List<SearchMangaDto>,
     @SerialName("request_params") val requestParams: RequestParamsDto,
 ) {
-    fun hasNextPage(): Boolean {
-        return page * requestParams.perPage < found
-    }
+    fun hasNextPage(): Boolean = page * requestParams.perPage < found
 
     @Serializable
     class SearchMangaDto(
@@ -87,7 +87,9 @@ class MangaDto(
         this@MangaDto.status?.let {
             status = when (it.lowercase().trim()) {
                 "ongoing" -> SManga.ONGOING
-                "complete" -> SManga.COMPLETED
+                "completed" -> SManga.COMPLETED
+                "hiatus" -> SManga.ON_HIATUS
+                "canceled" -> SManga.CANCELLED
                 else -> SManga.UNKNOWN
             }
         }
@@ -110,9 +112,7 @@ class ChapterListDto(
     val pages: Int,
     val page: Int,
 ) {
-    fun hasNextPage(): Boolean {
-        return page + 1 < pages
-    }
+    fun hasNextPage(): Boolean = page + 1 < pages
 }
 
 @Serializable
@@ -120,7 +120,7 @@ class ChapterDto(
     private val id: String,
     private val number: Float,
     private val title: String,
-    @SerialName("createdAt") private val date: String? = null,
+    @SerialName("createdAt") private val date: JsonElement? = null,
 ) {
     fun toSChapter(slug: String): SChapter = SChapter.create().apply {
         url = "$slug/$id"
@@ -131,17 +131,19 @@ class ChapterDto(
         }
     }
 
-    private fun parseDate(dateStr: String): Long {
-        return try {
-            DATE_FORMAT.parse(dateStr)!!.time
-        } catch (_: ParseException) {
-            0L
+    private fun parseDate(dateElement: JsonElement): Long = when (dateElement) {
+        is JsonPrimitive -> {
+            dateElement.longOrNull ?: DATE_FORMAT.tryParse(dateElement.content.replace("T ", "T"))
         }
+
+        else -> 0L
     }
 
     companion object {
         private val DATE_FORMAT by lazy {
-            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ENGLISH)
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ENGLISH).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }
         }
     }
 }
@@ -159,4 +161,21 @@ class PageDto(
 @Serializable
 class PageDataDto(
     val image: String,
+)
+
+@Serializable
+internal class SearchRequest(
+    val page: Int,
+    val sort: String,
+    val filter: SearchFilter,
+)
+
+@Serializable
+internal class SearchFilter(
+    val search: String? = null,
+    val types: List<String>,
+    val status: List<String>? = null,
+    val includedTags: List<String>? = null,
+    val year: Int? = null,
+    val minChapters: Int? = null,
 )

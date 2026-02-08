@@ -2,8 +2,8 @@ ext {
     extName = 'MHScans'
     extClass = '.MHScans'
     themePkg = 'madara'
-    baseUrl = 'https://mh.topmanhuas.net'
-    overrideVersionCode = 7
+    baseUrl = 'https://mh.inventariooculto.com'
+    overrideVersionCode = 10
     isNsfw = false
 }
 

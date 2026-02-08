@@ -232,6 +232,7 @@ abstract class MangaThemesia(
             "الناشر",
             "İllüstratör",
             "Çizer",
+            "Sanatçı",
         ),
     )
 
