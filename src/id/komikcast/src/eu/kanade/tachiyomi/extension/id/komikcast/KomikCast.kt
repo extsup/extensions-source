@@ -130,8 +130,15 @@ class KomikCast : HttpSource() {
 
     override fun pageListParse(response: Response): List<Page> {
         val result = response.parseAs<ChapterDetailResponse>()
+        
+        // result.data adalah ChapterItem yang langsung punya dataImages
         val images = result.data.dataImages?.toSortedMap(compareBy { it.toIntOrNull() ?: Int.MAX_VALUE })
             ?.values?.toList() ?: emptyList()
+        
+        if (images.isEmpty()) {
+            throw Exception("Page list is empty - No images found in chapter")
+        }
+        
         return images.mapIndexed { index, imageUrl ->
             Page(index, "", imageUrl)
         }
