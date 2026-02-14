@@ -19,7 +19,7 @@ class ShinigamiBrowseDataDto(
 @Serializable
 class MetaDto(
     val page: Int,
-    @SerialName("total_page") val totalPage: Int? = null,
+    @SerialName("total_page") val totalPage: Int,
 )
 
 @Serializable
@@ -41,7 +41,7 @@ class TaxonomyItemDto(
 
 @Serializable
 class ShinigamiChapterListDto(
-    @SerialName("data") val chapterList: List<ShinigamiChapterListDataDto>,
+    @SerialName("data") val chapterList: List<ShinigamiChapterListDataDto>? = null,
 )
 
 @Serializable
