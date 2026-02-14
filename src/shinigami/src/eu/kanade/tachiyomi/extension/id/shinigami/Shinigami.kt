@@ -167,9 +167,9 @@ class Shinigami : HttpSource(), ConfigurableSource {
     }
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        val result = response.parseAs<ShinigamiChapterListDto>()
-        return result.chapterList.map(::chapterFromObject)
-    }
+    val result = response.parseAs<ShinigamiChapterListDto>()
+    return result.chapterList?.map(::chapterFromObject) ?: emptyList()
+}
 
     private fun chapterFromObject(obj: ShinigamiChapterListDataDto): SChapter = SChapter.create().apply {
         date_upload = dateFormat.tryParse(obj.date)
