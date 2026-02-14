@@ -41,7 +41,7 @@ class TaxonomyItemDto(
 
 @Serializable
 class ShinigamiChapterListDto(
-    @SerialName("data") val chapterList: List<ShinigamiChapterListDataDto>,
+    @SerialName("data") val chapterList: List<ShinigamiChapterListDataDto>? = null,
 )
 
 @Serializable
