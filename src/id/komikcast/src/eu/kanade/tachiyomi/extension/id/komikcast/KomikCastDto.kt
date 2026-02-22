@@ -64,9 +64,9 @@ data class ChapterItem(
 @Serializable
 data class ChapterData(
     val slug: String? = null,
-    val index: Float,
+    val index: Float? = null,       // Nullable karena tidak ada di response chapter detail
     val title: String? = null,
-    val images: List<String>? = null,  // ← Field images untuk chapter detail
+    val images: List<String>? = null,
 )
 
 @Serializable
@@ -99,7 +99,7 @@ fun SeriesItem.toSManga(): SManga = SManga.create().apply {
 }
 
 fun ChapterItem.toSChapter(seriesSlug: String?): SChapter = SChapter.create().apply {
-    val chapterIndex = data.index
+    val chapterIndex = data.index ?: 0f  // Fallback ke 0 jika index null
     val formattedIndex = formatChapterNumber(chapterIndex)
     url = "/series/$seriesSlug/chapters/$chapterIndex"
     name = if (data.title.isNullOrBlank()) {
