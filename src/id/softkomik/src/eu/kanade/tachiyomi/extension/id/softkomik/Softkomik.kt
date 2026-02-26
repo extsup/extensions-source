@@ -30,7 +30,6 @@ class Softkomik : HttpSource() {
         private const val CHAPTER_URL = "https://v2.softdevices.my.id"
     }
 
-    // Client khusus untuk session dan buildId, tanpa interceptor apapun
     private val sessionClient = network.cloudflareClient.newBuilder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -273,7 +272,7 @@ class Softkomik : HttpSource() {
 
     override fun pageListParse(response: Response): List<Page> {
         val dto = response.parseAs<ChapterPageDto>()
-        val chapterData = dto.props.pageProps.data.data
+        val chapterData = dto.pageProps.data.data
 
         // path: _next/data/{buildId}/{slug}/chapter/{num}.json
         val slug = response.request.url.pathSegments[3]
