@@ -72,3 +72,10 @@ data class ChapterPageDataWrapperDto(val data: ChapterPageContentDto)
 
 @Serializable
 data class ChapterPageContentDto(val data: ChapterPageImagesDto)
+
+@Serializable
+data class SessionDto(
+    val token: String,
+    val sign: String,
+    val ex: Long = 0L,
+)
