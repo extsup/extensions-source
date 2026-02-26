@@ -30,6 +30,12 @@ class Softkomik : HttpSource() {
         private const val CHAPTER_URL = "https://v2.softdevices.my.id"
     }
 
+    // Client khusus untuk session dan buildId, tanpa interceptor apapun
+    private val sessionClient = network.cloudflareClient.newBuilder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
+
     override val client = network.cloudflareClient.newBuilder()
         .addInterceptor(::buildIdOutdatedInterceptor)
         .addInterceptor(::sessionInterceptor)
@@ -52,7 +58,7 @@ class Softkomik : HttpSource() {
 
     private fun fetchBuildId(document: Document? = null): String {
         val doc = document
-            ?: client.newCall(GET(baseUrl, headers)).execute().use { it.asJsoup() }
+            ?: sessionClient.newCall(GET(baseUrl, headers)).execute().use { it.asJsoup() }
         val nextData = doc.selectFirst("script#__NEXT_DATA__")?.data()
             ?: throw Exception("Could not find __NEXT_DATA__")
         return nextData.parseAs<NextDataDto>().buildId
@@ -101,7 +107,7 @@ class Softkomik : HttpSource() {
         }
 
     private fun fetchSession(): SessionDto {
-        return client.newCall(
+        return sessionClient.newCall(
             GET("$baseUrl/api/sessions", headers),
         ).execute().use { it.parseAs<SessionDto>() }
     }
