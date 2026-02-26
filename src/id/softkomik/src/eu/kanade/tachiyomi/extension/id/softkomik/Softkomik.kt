@@ -31,12 +31,14 @@ class Softkomik : HttpSource() {
 
     override val client = network.cloudflareClient.newBuilder()
         .addInterceptor(::buildIdOutdatedInterceptor)
+        .addInterceptor(::sessionInterceptor)
         .build()
 
     override fun headersBuilder(): Headers.Builder = super.headersBuilder()
         .add("Referer", "$baseUrl/")
         .add("Origin", baseUrl)
 
+    // ======================== Build ID ========================
     @Volatile
     private var buildId = ""
         get() = field.ifEmpty {
@@ -78,6 +80,52 @@ class Softkomik : HttpSource() {
             return chain.proceed(request.newBuilder().url(newUrl).build())
         }
         return response
+    }
+
+    // ======================== Session ========================
+    @Volatile
+    private var session: SessionDto? = null
+        get() {
+            val current = field
+            return if (current == null || System.currentTimeMillis() >= current.ex - 60_000) {
+                synchronized(this) {
+                    val recheck = field
+                    if (recheck == null || System.currentTimeMillis() >= recheck.ex - 60_000) {
+                        fetchSession().also { field = it }
+                    } else recheck
+                }
+            } else current
+        }
+
+    private fun fetchSession(): SessionDto {
+        return client.newCall(
+            GET("$baseUrl/api/sessions", headers),
+        ).execute().use { it.parseAs<SessionDto>() }
+    }
+
+    private fun sessionInterceptor(chain: Interceptor.Chain): Response {
+        val request = chain.request()
+        val response = chain.proceed(request)
+
+        if (response.code == 401 && request.url.host == "v2.softdevices.my.id") {
+            response.close()
+            synchronized(this) { session = fetchSession().also { session = it } }
+            val sess = session!!
+            val newRequest = request.newBuilder()
+                .header("X-Token", sess.token)
+                .header("X-Sign", sess.sign)
+                .build()
+            return chain.proceed(newRequest)
+        }
+        return response
+    }
+
+    private fun chapterHeaders(): Headers {
+        val sess = session!!
+        return headersBuilder()
+            .add("X-Token", sess.token)
+            .add("X-Sign", sess.sign)
+            .build()
     }
 
     // ======================== Popular ========================
@@ -183,7 +231,8 @@ class Softkomik : HttpSource() {
     override fun getMangaUrl(manga: SManga): String = "$baseUrl/${manga.url}"
 
     // ======================== Chapters ========================
-    override fun chapterListRequest(manga: SManga): Request = GET("$CHAPTER_URL/komik/${manga.url}/chapter?limit=9999999", headers)
+    override fun chapterListRequest(manga: SManga): Request =
+        GET("$CHAPTER_URL/komik/${manga.url}/chapter?limit=9999999", chapterHeaders())
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val dto = response.parseAs<ChapterListDto>()
