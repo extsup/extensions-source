@@ -63,10 +63,7 @@ data class DetailsPagePropsDto(val data: MangaDetailsDto)
 data class ChapterListDto(val chapter: List<ChapterDto>)
 
 @Serializable
-data class ChapterPageDto(val props: ChapterPagePropsDto)
-
-@Serializable
-data class ChapterPagePropsDto(val pageProps: ChapterPageDataWrapperDto)
+data class ChapterPageDto(val pageProps: ChapterPageDataWrapperDto)
 
 @Serializable
 data class ChapterPageDataWrapperDto(val data: ChapterPageContentDto)
