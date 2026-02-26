@@ -16,6 +16,7 @@ import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.nodes.Document
+import java.util.concurrent.TimeUnit
 
 class Softkomik : HttpSource() {
     override val name = "Softkomik"
@@ -32,6 +33,8 @@ class Softkomik : HttpSource() {
     override val client = network.cloudflareClient.newBuilder()
         .addInterceptor(::buildIdOutdatedInterceptor)
         .addInterceptor(::sessionInterceptor)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
     override fun headersBuilder(): Headers.Builder = super.headersBuilder()
@@ -207,7 +210,8 @@ class Softkomik : HttpSource() {
     }
 
     // ======================== Details ========================
-    override fun mangaDetailsRequest(manga: SManga): Request = GET("$baseUrl/_next/data/$buildId/${manga.url}.json", headers)
+    override fun mangaDetailsRequest(manga: SManga): Request =
+        GET("$baseUrl/_next/data/$buildId/${manga.url}.json", headers)
 
     override fun mangaDetailsParse(response: Response): SManga {
         val dto = response.parseAs<DetailsDto>()
@@ -258,14 +262,31 @@ class Softkomik : HttpSource() {
     }
 
     // ======================== Pages ========================
+    override fun pageListRequest(chapter: SChapter): Request =
+        GET("$baseUrl${chapter.url}", headers)
+
     override fun pageListParse(response: Response): List<Page> {
         val doc = response.asJsoup()
         val nextData = doc.selectFirst("script#__NEXT_DATA__")?.data()
             ?: throw Exception("Could not find __NEXT_DATA__")
         val dto = nextData.parseAs<ChapterPageDto>()
-        val images = dto.props.pageProps.data.data.imageSrc
+        val chapterData = dto.props.pageProps.data.data
 
-        return images.mapIndexed { i, img ->
+        val slug = response.request.url.pathSegments
+            .dropLast(2).lastOrNull()
+            ?: throw Exception("Could not get slug")
+        val chapterNum = response.request.url.pathSegments.lastOrNull()
+            ?: throw Exception("Could not get chapter number")
+
+        val imageResponse = client.newCall(
+            GET(
+                "$CHAPTER_URL/komik/$slug/chapter/$chapterNum/img/${chapterData.id}",
+                chapterHeaders(),
+            ),
+        ).execute()
+
+        val imageDto = imageResponse.parseAs<ChapterPageImagesDto>()
+        return imageDto.imageSrc.mapIndexed { i, img ->
             Page(i, imageUrl = "$IMAGE_URL/$img")
         }
     }
