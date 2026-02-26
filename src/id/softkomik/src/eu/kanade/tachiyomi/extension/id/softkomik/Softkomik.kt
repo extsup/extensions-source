@@ -269,19 +269,16 @@ class Softkomik : HttpSource() {
 
     // ======================== Pages ========================
     override fun pageListRequest(chapter: SChapter): Request =
-        GET("$baseUrl${chapter.url}", headers)
+        GET("$baseUrl/_next/data/$buildId${chapter.url}.json", headers)
 
     override fun pageListParse(response: Response): List<Page> {
-        val doc = response.asJsoup()
-        val nextData = doc.selectFirst("script#__NEXT_DATA__")?.data()
-            ?: throw Exception("Could not find __NEXT_DATA__")
-        val dto = nextData.parseAs<ChapterPageDto>()
+        val dto = response.parseAs<ChapterPageDto>()
         val chapterData = dto.props.pageProps.data.data
 
-        val slug = response.request.url.pathSegments
-            .dropLast(2).lastOrNull()
-            ?: throw Exception("Could not get slug")
+        // path: _next/data/{buildId}/{slug}/chapter/{num}.json
+        val slug = response.request.url.pathSegments[3]
         val chapterNum = response.request.url.pathSegments.lastOrNull()
+            ?.removeSuffix(".json")
             ?: throw Exception("Could not get chapter number")
 
         val imageResponse = client.newCall(
