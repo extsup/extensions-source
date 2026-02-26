@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.extension.id.softkomik
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -71,7 +72,13 @@ data class ChapterPagePropsDto(val pageProps: ChapterPageDataWrapperDto)
 data class ChapterPageDataWrapperDto(val data: ChapterPageContentDto)
 
 @Serializable
-data class ChapterPageContentDto(val data: ChapterPageImagesDto)
+data class ChapterPageContentDto(val data: ChapterDataDto)
+
+@Serializable
+data class ChapterDataDto(
+    @SerialName("_id") val id: String,
+    val imageSrc: List<String> = emptyList(),
+)
 
 @Serializable
 data class SessionDto(
