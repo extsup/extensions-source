@@ -640,7 +640,7 @@ abstract class MangaThemesia(
     }
 
     private fun pathLengthIs(url: HttpUrl, n: Int, strict: Boolean = false): Boolean {
-        return url.pathSegments.size == n && url.pathSegments[n - 1].isNotEmpty() ||
+        return (url.pathSegments.size == n && url.pathSegments[n - 1].isNotEmpty()) ||
             (!strict && url.pathSegments.size == n + 1 && url.pathSegments[n].isEmpty())
     }
 
