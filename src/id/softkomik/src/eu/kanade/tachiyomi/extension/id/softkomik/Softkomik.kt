@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit
 
 class Softkomik : HttpSource() {
     override val name = "Softkomik"
-    override val baseUrl = "https://softkomik.com"
+    override val baseUrl = "https://softkomik.co"
     override val lang = "id"
     override val supportsLatest = true
 
@@ -129,7 +129,7 @@ class Softkomik : HttpSource() {
     }
 
     private fun chapterHeaders(): Headers {
-        val sess = session!!
+        val sess = session  // ← fix: hapus !!
         return headersBuilder()
             .add("X-Token", sess.token)
             .add("X-Sign", sess.sign)
@@ -274,7 +274,6 @@ class Softkomik : HttpSource() {
         val dto = response.parseAs<ChapterPageDto>()
         val chapterData = dto.pageProps.data.data
 
-        // path: _next/data/{buildId}/{slug}/chapter/{num}.json
         val slug = response.request.url.pathSegments[3]
         val chapterNum = response.request.url.pathSegments.lastOrNull()
             ?.removeSuffix(".json")
