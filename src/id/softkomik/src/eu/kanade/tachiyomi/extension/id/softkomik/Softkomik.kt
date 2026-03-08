@@ -129,12 +129,12 @@ class Softkomik : HttpSource() {
     }
 
     private fun chapterHeaders(): Headers {
-        val sess = session  // ← fix: hapus !!
-        return headersBuilder()
-            .add("X-Token", sess.token)
-            .add("X-Sign", sess.sign)
-            .build()
-    }
+    val sess = session ?: throw Exception("Session tidak tersedia")
+    return headersBuilder()
+        .add("X-Token", sess.token)
+        .add("X-Sign", sess.sign)
+        .build()
+}
 
     // ======================== Popular ========================
     override fun popularMangaRequest(page: Int): Request {
