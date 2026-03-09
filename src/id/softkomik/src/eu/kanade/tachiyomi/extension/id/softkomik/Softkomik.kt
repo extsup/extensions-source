@@ -196,9 +196,11 @@ class Softkomik :
     // ======================== Search ========================
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         val url = if (query.isNotEmpty()) {
-            "$baseUrl/_next/data/$buildId/komik/list.json".toHttpUrl().newBuilder()
+            // Search teks pakai API v2 langsung (sama dengan popular/latest)
+            "$CHAPTER_URL/komik".toHttpUrl().newBuilder()
                 .addQueryParameter("name", query)
                 .addQueryParameter("page", page.toString())
+                .addQueryParameter("limit", "24")
         } else {
             "$baseUrl/_next/data/$buildId/komik/library.json".toHttpUrl().newBuilder()
                 .addQueryParameter("search", "")
@@ -216,26 +218,25 @@ class Softkomik :
             }
         }
 
-        if (query.isNotEmpty()) {
-            url.setQueryParameter("sortBy", "")
+        return if (query.isNotEmpty()) {
+            GET(url.build(), chapterHeaders())
+        } else {
+            GET(url.build(), headers)
         }
-
-        return GET(url.build(), headers)
     }
 
     override fun searchMangaParse(response: Response): MangasPage {
-        val isList = response.request.url.pathSegments.contains("list.json")
-        return if (isList) {
-            val dto = response.parseAs<ListDto>()
-            val libData = dto.pageProps.data
-            val mangas = libData.data.map { manga ->
+        val isApiSearch = response.request.url.host == "v2.softdevices.my.id"
+        return if (isApiSearch) {
+            val dto = response.parseAs<LibDataDto>()
+            val mangas = dto.data.map { manga ->
                 SManga.create().apply {
                     setUrlWithoutDomain(manga.title_slug)
                     title = manga.title
                     thumbnail_url = coverUrl(manga.gambar)
                 }
             }
-            MangasPage(mangas, libData.page < libData.maxPage)
+            MangasPage(mangas, dto.page < dto.maxPage)
         } else {
             val dto = response.parseAs<LibraryDto>()
             val mangas = dto.pageProps.libData.data.map { manga ->
