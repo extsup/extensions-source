@@ -51,7 +51,7 @@ class Softkomik :
 
     companion object {
         private const val COVER_URL = "https://cover.softdevices.my.id/softkomik-cover"
-        private const val IMAGE_URL = "https://cdn1.softkomik.online/softkomik"
+        private const val IMAGE_URL = "https://cd1.softkomik.online/softkomik"
         private const val CHAPTER_URL = "https://v2.softdevices.my.id"
 
         private const val DEFAULT_DOMAIN = "https://softkomik.co"
