@@ -51,7 +51,7 @@ class Softkomik :
 
     companion object {
         private const val COVER_URL = "https://cover.softdevices.my.id/softkomik-cover"
-        private const val IMAGE_URL = "https://cd1.softkomik.online/softkomik"
+        private const val IMAGE_URL = "https://cdn1.softkomik.online/softkomik"
         private const val CHAPTER_URL = "https://v2.softdevices.my.id"
 
         private const val DEFAULT_DOMAIN = "https://softkomik.co"
@@ -184,14 +184,26 @@ class Softkomik :
 
     // ======================== Latest ========================
     override fun latestUpdatesRequest(page: Int): Request {
-        val url = "$baseUrl/_next/data/$buildId/komik/library.json".toHttpUrl().newBuilder()
-            .addQueryParameter("sortBy", "newKomik")
+        val url = "$CHAPTER_URL/komik".toHttpUrl().newBuilder()
             .addQueryParameter("page", page.toString())
+            .addQueryParameter("limit", "24")
+            .addQueryParameter("sortBy", "new")
             .build()
-        return GET(url, headers)
+        return GET(url, chapterHeaders())
     }
 
-    override fun latestUpdatesParse(response: Response) = searchMangaParse(response)
+    override fun latestUpdatesParse(response: Response): MangasPage {
+        val dto = response.parseAs<LibDataDto>()
+        val mangas = dto.data.map { manga ->
+            SManga.create().apply {
+                setUrlWithoutDomain(manga.title_slug)
+                title = manga.title
+                thumbnail_url = coverUrl(manga.gambar)
+            }
+        }
+        return MangasPage(mangas, dto.page < dto.maxPage)
+    }
+
 
     // ======================== Search ========================
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
