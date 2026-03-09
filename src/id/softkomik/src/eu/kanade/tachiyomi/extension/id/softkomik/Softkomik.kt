@@ -1,6 +1,11 @@
 package eu.kanade.tachiyomi.extension.id.softkomik
 
+import android.app.Application
+import android.content.SharedPreferences
+import androidx.preference.EditTextPreference
+import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -16,11 +21,31 @@ import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.nodes.Document
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import java.util.concurrent.TimeUnit
 
-class Softkomik : HttpSource() {
+class Softkomik :
+    HttpSource(),
+    ConfigurableSource {
+
+    // ======================== Preferences ========================
+    private val preferences: SharedPreferences by lazy {
+        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
+    }
+
+    private val prefDomain: String
+        get() = preferences.getString(PREF_DOMAIN_KEY, DEFAULT_DOMAIN)
+            ?.trimEnd('/')
+            ?.ifEmpty { DEFAULT_DOMAIN }
+            ?: DEFAULT_DOMAIN
+
+    private val prefImageProxy: String
+        get() = preferences.getString(PREF_IMAGE_PROXY_KEY, "")?.trim() ?: ""
+
+    // ======================== Source Info ========================
     override val name = "Softkomik"
-    override val baseUrl = "https://softkomik.co"
+    override val baseUrl get() = prefDomain
     override val lang = "id"
     override val supportsLatest = true
 
@@ -28,6 +53,10 @@ class Softkomik : HttpSource() {
         private const val COVER_URL = "https://cover.softdevices.my.id/softkomik-cover"
         private const val IMAGE_URL = "https://image.softkomik.com/softkomik"
         private const val CHAPTER_URL = "https://v2.softdevices.my.id"
+
+        private const val DEFAULT_DOMAIN = "https://softkomik.co"
+        private const val PREF_DOMAIN_KEY = "pref_custom_domain"
+        private const val PREF_IMAGE_PROXY_KEY = "pref_image_proxy"
     }
 
     private val sessionClient = network.cloudflareClient.newBuilder()
@@ -129,12 +158,12 @@ class Softkomik : HttpSource() {
     }
 
     private fun chapterHeaders(): Headers {
-    val sess = session ?: throw Exception("Session tidak tersedia")
-    return headersBuilder()
-        .add("X-Token", sess.token)
-        .add("X-Sign", sess.sign)
-        .build()
-}
+        val sess = session ?: throw Exception("Session tidak tersedia")
+        return headersBuilder()
+            .add("X-Token", sess.token)
+            .add("X-Sign", sess.sign)
+            .build()
+    }
 
     // ======================== Popular ========================
     override fun popularMangaRequest(page: Int): Request {
@@ -287,8 +316,12 @@ class Softkomik : HttpSource() {
         ).execute()
 
         val imageDto = imageResponse.parseAs<ChapterPageImagesDto>()
+        val proxy = prefImageProxy
+
         return imageDto.imageSrc.mapIndexed { i, img ->
-            Page(i, imageUrl = "$IMAGE_URL/$img")
+            val originalUrl = "$IMAGE_URL/$img"
+            val finalUrl = if (proxy.isBlank()) originalUrl else "$proxy$originalUrl"
+            Page(i, imageUrl = finalUrl)
         }
     }
 
@@ -303,6 +336,7 @@ class Softkomik : HttpSource() {
         return GET(page.imageUrl!!, newHeaders)
     }
 
+    // ======================== Filters ========================
     override fun getFilterList() = FilterList(
         Filter.Header("Filter tidak bisa digabungkan dengan pencarian teks."),
         Filter.Separator(),
@@ -312,4 +346,43 @@ class Softkomik : HttpSource() {
         GenreFilter(),
         MinChapterFilter(),
     )
+
+    // ======================== Preference Screen ========================
+    override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        EditTextPreference(screen.context).apply {
+            key = PREF_DOMAIN_KEY
+            title = "Domain Softkomik"
+            summary = "Ubah domain jika domain utama tidak bisa diakses.\nSaat ini: $prefDomain"
+            dialogTitle = "Domain Softkomik"
+            dialogMessage = "Masukkan domain baru (contoh: https://softkomik.com)\nKosongkan untuk kembali ke default."
+            setDefaultValue(DEFAULT_DOMAIN)
+            setOnPreferenceChangeListener { pref, newValue ->
+                val value = (newValue as? String)?.trimEnd('/') ?: DEFAULT_DOMAIN
+                pref.summary = "Ubah domain jika domain utama tidak bisa diakses.\nSaat ini: ${value.ifEmpty { DEFAULT_DOMAIN }}"
+                true
+            }
+            screen.addPreference(this)
+        }
+
+        EditTextPreference(screen.context).apply {
+            key = PREF_IMAGE_PROXY_KEY
+            title = "Proxy Resize Gambar"
+            summary = buildProxySummary(prefImageProxy)
+            dialogTitle = "Proxy Resize Gambar"
+            dialogMessage = "Masukkan prefix URL proxy gambar.\n\nContoh wsrv.nl:\nhttps://wsrv.nl/?url=\n\nContoh imageproxy:\nhttps://imageproxy.example.com/300x0/\n\nKosongkan untuk tidak menggunakan proxy."
+            setDefaultValue("")
+            setOnPreferenceChangeListener { pref, newValue ->
+                val value = (newValue as? String)?.trim() ?: ""
+                pref.summary = buildProxySummary(value)
+                true
+            }
+            screen.addPreference(this)
+        }
+    }
+
+    private fun buildProxySummary(proxy: String): String = if (proxy.isBlank()) {
+        "Tidak menggunakan proxy. Gambar dimuat langsung dari server asli."
+    } else {
+        "Proxy aktif: $proxy\nContoh: ${proxy}https://image.softkomik.com/softkomik/example.jpg"
+    }
 }
