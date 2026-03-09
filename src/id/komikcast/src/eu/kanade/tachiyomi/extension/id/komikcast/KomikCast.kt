@@ -49,20 +49,26 @@ class KomikCast :
     private val prefImageProxy: String
         get() = preferences.getString(PREF_IMAGE_PROXY_KEY, "")?.trim() ?: ""
 
+    private val prefCoverProxy: String
+        get() = preferences.getString(PREF_COVER_PROXY_KEY, DEFAULT_COVER_PROXY)?.trim() ?: DEFAULT_COVER_PROXY
+
     companion object {
         private const val DEFAULT_DOMAIN = "https://v1.komikcast.fit"
         private const val PREF_DOMAIN_KEY = "pref_custom_domain"
         private const val PREF_IMAGE_PROXY_KEY = "pref_image_proxy"
+        private const val PREF_COVER_PROXY_KEY = "pref_cover_proxy"
+        private const val DEFAULT_COVER_PROXY = "https://proxygambar.vercel.app/api/gambar?w=110&h=150&url="
     }
 
     override val baseUrl get() = prefDomain
 
     private val apiUrl = "https://be.komikcast.fit"
 
-    // Cover di-resize via wsrv.nl dengan ukuran thumbnail standar
+    // Cover di-resize via proxy yang bisa dikonfigurasi di preferences
     private fun coverUrl(originalUrl: String?): String? {
         if (originalUrl.isNullOrBlank()) return null
-        return "https://wsrv.nl/?url=$originalUrl&w=110&h=150&fit=cover"
+        val proxy = prefCoverProxy
+        return if (proxy.isBlank()) originalUrl else "$proxy${java.net.URLEncoder.encode(originalUrl, "UTF-8")}"
     }
 
     override val client: OkHttpClient = network.cloudflareClient.newBuilder()
@@ -229,6 +235,22 @@ class KomikCast :
         }
 
         EditTextPreference(screen.context).apply {
+            key = PREF_COVER_PROXY_KEY
+            title = "Proxy Resize Cover"
+            summary = buildCoverProxySummary(prefCoverProxy)
+            dialogTitle = "Proxy Resize Cover"
+            dialogMessage = "Prefix URL proxy untuk resize cover manga.
+Kosongkan untuk nonaktif."
+            setDefaultValue(DEFAULT_COVER_PROXY)
+            setOnPreferenceChangeListener { pref, newValue ->
+                val value = (newValue as? String)?.trim() ?: ""
+                pref.summary = buildCoverProxySummary(value)
+                true
+            }
+            screen.addPreference(this)
+        }
+
+        EditTextPreference(screen.context).apply {
             key = PREF_IMAGE_PROXY_KEY
             title = "Proxy Resize Gambar"
             summary = buildProxySummary(prefImageProxy)
@@ -245,5 +267,8 @@ class KomikCast :
     }
 
     private fun buildProxySummary(proxy: String): String =
+        if (proxy.isBlank()) "Nonaktif (gambar asli)" else proxy
+
+    private fun buildCoverProxySummary(proxy: String): String =
         if (proxy.isBlank()) "Nonaktif (gambar asli)" else proxy
 }
