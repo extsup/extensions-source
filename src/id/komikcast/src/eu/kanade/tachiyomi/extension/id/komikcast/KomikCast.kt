@@ -1,7 +1,12 @@
 package eu.kanade.tachiyomi.extension.id.komikcast
 
+import android.app.Application
+import android.content.SharedPreferences
+import androidx.preference.EditTextPreference
+import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.interceptor.rateLimit
+import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -14,21 +19,51 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
-class KomikCast : HttpSource() {
+class KomikCast :
+    HttpSource(),
+    ConfigurableSource {
 
     // Formerly "Komik Cast (WP Manga Stream)"
     override val id = 972717448578983812
 
     override val name = "Komik Cast"
 
-    override val baseUrl = "https://v1.komikcast.fit"
-
-    private val apiUrl = "https://be.komikcast.fit"
-
     override val lang = "id"
 
     override val supportsLatest = true
+
+    // ======================== Preferences ========================
+    private val preferences: SharedPreferences by lazy {
+        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
+    }
+
+    private val prefDomain: String
+        get() = preferences.getString(PREF_DOMAIN_KEY, DEFAULT_DOMAIN)
+            ?.trimEnd('/')
+            ?.ifEmpty { DEFAULT_DOMAIN }
+            ?: DEFAULT_DOMAIN
+
+    private val prefImageProxy: String
+        get() = preferences.getString(PREF_IMAGE_PROXY_KEY, "")?.trim() ?: ""
+
+    companion object {
+        private const val DEFAULT_DOMAIN = "https://v1.komikcast.fit"
+        private const val PREF_DOMAIN_KEY = "pref_custom_domain"
+        private const val PREF_IMAGE_PROXY_KEY = "pref_image_proxy"
+    }
+
+    override val baseUrl get() = prefDomain
+
+    private val apiUrl = "https://be.komikcast.fit"
+
+    // Cover di-resize via wsrv.nl dengan ukuran thumbnail standar
+    private fun coverUrl(originalUrl: String?): String? {
+        if (originalUrl.isNullOrBlank()) return null
+        return "https://wsrv.nl/?url=$originalUrl&w=110&h=150&fit=cover"
+    }
 
     override val client: OkHttpClient = network.cloudflareClient.newBuilder()
         .rateLimit(3)
@@ -99,7 +134,9 @@ class KomikCast : HttpSource() {
 
     override fun mangaDetailsParse(response: Response): SManga {
         val result = response.parseAs<SeriesDetailResponse>()
-        return result.data.toSManga()
+        return result.data.toSManga().apply {
+            thumbnail_url = coverUrl(result.data.data.coverImage)
+        }
     }
 
     override fun chapterListRequest(manga: SManga): Request {
@@ -118,7 +155,6 @@ class KomikCast : HttpSource() {
         if (chapter.url.startsWith("/chapter/")) {
             val slug = chapter.url.substringAfter("/chapter/").substringBefore("-chapter-")
             val chapterIndex = chapter.url.substringAfter("-chapter-").substringBefore("-bahasa-")
-
             return GET("$apiUrl/series/$slug/chapters/$chapterIndex", headers)
         }
 
@@ -129,23 +165,27 @@ class KomikCast : HttpSource() {
     }
 
     override fun pageListParse(response: Response): List<Page> {
-    val result = response.parseAs<ChapterDetailResponse>()
-    
-    // Akses images dari result.data.data.images
-    val images = result.data.data.images ?: emptyList()
-    
-    if (images.isEmpty()) {
-        throw Exception("Page list is empty - No images found in chapter")
+        val result = response.parseAs<ChapterDetailResponse>()
+        val images = result.data.data.images ?: emptyList()
+
+        if (images.isEmpty()) {
+            throw Exception("Page list is empty - No images found in chapter")
+        }
+
+        val proxy = prefImageProxy
+        return images.mapIndexed { index, imageUrl ->
+            val finalUrl = if (proxy.isBlank()) imageUrl else "$proxy$imageUrl"
+            Page(index, "", finalUrl)
+        }
     }
-    
-    return images.mapIndexed { index, imageUrl ->
-        Page(index, "", imageUrl)
-    }
-}
 
     private fun parseSeriesListResponse(response: Response): MangasPage {
         val result = response.parseAs<SeriesListResponse>()
-        val mangas = result.data.map { it.toSManga() }
+        val mangas = result.data.map { item ->
+            item.toSManga().apply {
+                thumbnail_url = coverUrl(item.data.coverImage)
+            }
+        }
         val hasNextPage = result.meta?.let { it.page ?: 0 < (it.lastPage ?: 0) } ?: false
         return MangasPage(mangas, hasNextPage)
     }
@@ -168,7 +208,42 @@ class KomikCast : HttpSource() {
             .set("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
             .set("Referer", "$baseUrl/")
             .build()
-
         return GET(page.imageUrl!!, newHeaders)
     }
+
+    // ======================== Preference Screen ========================
+    override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        EditTextPreference(screen.context).apply {
+            key = PREF_DOMAIN_KEY
+            title = "Domain Komik Cast"
+            summary = prefDomain
+            dialogTitle = "Domain Komik Cast"
+            dialogMessage = "Masukkan domain baru (contoh: https://v2.komikcast.fit)\nKosongkan untuk kembali ke default."
+            setDefaultValue(DEFAULT_DOMAIN)
+            setOnPreferenceChangeListener { pref, newValue ->
+                val value = (newValue as? String)?.trimEnd('/') ?: DEFAULT_DOMAIN
+                pref.summary = value.ifEmpty { DEFAULT_DOMAIN }
+                true
+            }
+            screen.addPreference(this)
+        }
+
+        EditTextPreference(screen.context).apply {
+            key = PREF_IMAGE_PROXY_KEY
+            title = "Proxy Resize Gambar"
+            summary = buildProxySummary(prefImageProxy)
+            dialogTitle = "Proxy Resize Gambar"
+            dialogMessage = "Masukkan prefix URL proxy.\nContoh: https://wsrv.nl/?url=\nKosongkan untuk nonaktif."
+            setDefaultValue("")
+            setOnPreferenceChangeListener { pref, newValue ->
+                val value = (newValue as? String)?.trim() ?: ""
+                pref.summary = buildProxySummary(value)
+                true
+            }
+            screen.addPreference(this)
+        }
+    }
+
+    private fun buildProxySummary(proxy: String): String =
+        if (proxy.isBlank()) "Nonaktif (gambar asli)" else proxy
 }
