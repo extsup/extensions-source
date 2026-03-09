@@ -48,12 +48,6 @@ data class LibraryDto(val pageProps: LibraryPagePropsDto)
 data class LibraryPagePropsDto(val libData: LibDataDto)
 
 @Serializable
-data class ListDto(val pageProps: ListPagePropsDto)
-
-@Serializable
-data class ListPagePropsDto(val data: LibDataDto)
-
-@Serializable
 data class DetailsDto(val pageProps: DetailsPagePropsDto)
 
 @Serializable
