@@ -51,12 +51,18 @@ class Softkomik :
 
     companion object {
         private const val COVER_URL = "https://cover.softdevices.my.id/softkomik-cover"
-        private const val IMAGE_URL = "https://cd1.softkomik.online/softkomik"
+        private const val IMAGE_URL = "https://cdn1.softkomik.online/softkomik"
         private const val CHAPTER_URL = "https://v2.softdevices.my.id"
 
         private const val DEFAULT_DOMAIN = "https://softkomik.co"
         private const val PREF_DOMAIN_KEY = "pref_custom_domain"
         private const val PREF_IMAGE_PROXY_KEY = "pref_image_proxy"
+    }
+
+    // Cover di-resize via wsrv.nl dengan ukuran thumbnail standar
+    private fun coverUrl(gambar: String): String {
+        val original = "$COVER_URL/${gambar.removePrefix("/")}"
+        return "https://wsrv.nl/?url=$original&w=110&h=150&fit=cover"
     }
 
     private val sessionClient = network.cloudflareClient.newBuilder()
@@ -226,7 +232,7 @@ class Softkomik :
                 SManga.create().apply {
                     setUrlWithoutDomain(manga.title_slug)
                     title = manga.title
-                    thumbnail_url = "$COVER_URL/${manga.gambar.removePrefix("/")}"
+                    thumbnail_url = coverUrl(manga.gambar)
                 }
             }
             MangasPage(mangas, libData.page < libData.maxPage)
@@ -236,7 +242,7 @@ class Softkomik :
                 SManga.create().apply {
                     setUrlWithoutDomain(manga.title_slug)
                     title = manga.title
-                    thumbnail_url = "$COVER_URL/${manga.gambar.removePrefix("/")}"
+                    thumbnail_url = coverUrl(manga.gambar)
                 }
             }
             MangasPage(mangas, dto.pageProps.libData.page < dto.pageProps.libData.maxPage)
@@ -262,7 +268,7 @@ class Softkomik :
                 "tamat" -> SManga.COMPLETED
                 else -> SManga.UNKNOWN
             }
-            thumbnail_url = "$COVER_URL/${manga.gambar.removePrefix("/")}"
+            thumbnail_url = coverUrl(manga.gambar)
         }
     }
 
@@ -352,13 +358,13 @@ class Softkomik :
         EditTextPreference(screen.context).apply {
             key = PREF_DOMAIN_KEY
             title = "Domain Softkomik"
-            summary = "Ubah domain jika domain utama tidak bisa diakses.\nSaat ini: $prefDomain"
+            summary = prefDomain
             dialogTitle = "Domain Softkomik"
             dialogMessage = "Masukkan domain baru (contoh: https://softkomik.com)\nKosongkan untuk kembali ke default."
             setDefaultValue(DEFAULT_DOMAIN)
             setOnPreferenceChangeListener { pref, newValue ->
                 val value = (newValue as? String)?.trimEnd('/') ?: DEFAULT_DOMAIN
-                pref.summary = "Ubah domain.\nDomain Saat ini: ${value.ifEmpty { DEFAULT_DOMAIN }}"
+                pref.summary = value.ifEmpty { DEFAULT_DOMAIN }
                 true
             }
             screen.addPreference(this)
@@ -369,7 +375,7 @@ class Softkomik :
             title = "Proxy Resize Gambar"
             summary = buildProxySummary(prefImageProxy)
             dialogTitle = "Proxy Resize Gambar"
-            dialogMessage = "Masukkan prefix URL proxy gambar."
+            dialogMessage = "Masukkan prefix URL proxy.\nContoh: https://wsrv.nl/?url=\nKosongkan untuk nonaktif."
             setDefaultValue("")
             setOnPreferenceChangeListener { pref, newValue ->
                 val value = (newValue as? String)?.trim() ?: ""
@@ -380,9 +386,6 @@ class Softkomik :
         }
     }
 
-    private fun buildProxySummary(proxy: String): String = if (proxy.isBlank()) {
-        "Tidak menggunakan proxy. Gambar dimuat langsung dari server asli."
-    } else {
-        "Proxy aktif: $proxy\nContoh: ${proxy}https://image.softkomik.com/softkomik/example.jpg"
-    }
+    private fun buildProxySummary(proxy: String): String =
+        if (proxy.isBlank()) "Nonaktif (gambar asli)" else proxy
 }
