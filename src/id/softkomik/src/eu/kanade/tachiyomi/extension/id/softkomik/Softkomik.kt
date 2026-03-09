@@ -51,7 +51,7 @@ class Softkomik :
 
     companion object {
         private const val COVER_URL = "https://cover.softdevices.my.id/softkomik-cover"
-        private const val IMAGE_URL = "https://image.softkomik.com/softkomik"
+        private const val IMAGE_URL = "https://cd1.softkomik.online/softkomik"
         private const val CHAPTER_URL = "https://v2.softdevices.my.id"
 
         private const val DEFAULT_DOMAIN = "https://softkomik.co"
@@ -358,7 +358,7 @@ class Softkomik :
             setDefaultValue(DEFAULT_DOMAIN)
             setOnPreferenceChangeListener { pref, newValue ->
                 val value = (newValue as? String)?.trimEnd('/') ?: DEFAULT_DOMAIN
-                pref.summary = "Ubah domain jika domain utama tidak bisa diakses.\nSaat ini: ${value.ifEmpty { DEFAULT_DOMAIN }}"
+                pref.summary = "Ubah domain.\nDomain Saat ini: ${value.ifEmpty { DEFAULT_DOMAIN }}"
                 true
             }
             screen.addPreference(this)
@@ -369,7 +369,7 @@ class Softkomik :
             title = "Proxy Resize Gambar"
             summary = buildProxySummary(prefImageProxy)
             dialogTitle = "Proxy Resize Gambar"
-            dialogMessage = "Masukkan prefix URL proxy gambar.\n\nContoh wsrv.nl:\nhttps://wsrv.nl/?url=\n\nContoh imageproxy:\nhttps://imageproxy.example.com/300x0/\n\nKosongkan untuk tidak menggunakan proxy."
+            dialogMessage = "Masukkan prefix URL proxy gambar."
             setDefaultValue("")
             setOnPreferenceChangeListener { pref, newValue ->
                 val value = (newValue as? String)?.trim() ?: ""
