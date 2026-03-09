@@ -36,7 +36,7 @@ data class MangaDetailsDto(
 data class ChapterDto(val chapter: String)
 
 @Serializable
-data class NextDataDto(val buildId: String)
+data class NextDataDto(val buildId: String = "")
 
 @Serializable
 data class ChapterPageImagesDto(val imageSrc: List<String>)
