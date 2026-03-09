@@ -239,8 +239,7 @@ class KomikCast :
             title = "Proxy Resize Cover"
             summary = buildCoverProxySummary(prefCoverProxy)
             dialogTitle = "Proxy Resize Cover"
-            dialogMessage = "Prefix URL proxy untuk resize cover manga.
-Kosongkan untuk nonaktif."
+            dialogMessage = "Prefix URL proxy untuk resize cover manga.\nKosongkan untuk nonaktif."
             setDefaultValue(DEFAULT_COVER_PROXY)
             setOnPreferenceChangeListener { pref, newValue ->
                 val value = (newValue as? String)?.trim() ?: ""
