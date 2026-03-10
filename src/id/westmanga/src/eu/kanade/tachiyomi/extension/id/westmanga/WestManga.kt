@@ -108,17 +108,10 @@ class WestManga :
     //  Helper: proxy image URL
     // ──────────────────────────────────────────────
 
-    /**
-     * Jika resize proxy diset, wrap [original] dengan proxy URL.
-     * Format akhir: <proxy>?url=<encoded original>
-     */
     private fun proxiedImageUrl(original: String): String {
         val proxy = imageResizeProxy
         if (proxy.isBlank()) return original
-        return proxy.toHttpUrl().newBuilder()
-            .addQueryParameter("url", original)
-            .build()
-            .toString()
+        return "$proxy$original"
     }
 
     /**
