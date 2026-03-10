@@ -188,7 +188,7 @@ class WestManga :
                         .toString(),
                 )
                 title = it.title
-                thumbnail_url = coverUrl(it.cover)
+                thumbnail_url = coverUrl(it.cover.orEmpty())
             }
         }
 
@@ -234,7 +234,7 @@ class WestManga :
                     .toString(),
             )
             title = data.title
-            thumbnail_url = coverUrl(data.cover)
+            thumbnail_url = coverUrl(data.cover.orEmpty())
             author = data.author
             status = when (data.status) {
                 "ongoing" -> SManga.ONGOING
