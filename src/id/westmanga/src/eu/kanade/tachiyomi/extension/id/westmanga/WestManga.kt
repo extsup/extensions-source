@@ -293,12 +293,10 @@ class WestManga :
         }
     }
 
-    companion object {
-        private const val DEFAULT_BASE_URL = "https://westmanga.me"
-        private const val PREF_BASE_URL_KEY = "pref_base_url"
-        private const val PREF_IMAGE_PROXY_KEY = "pref_image_proxy"
-    }
 }
 
 private const val accessKey = "WM_WEB_FRONT_END"
 private const val secretKey = "xxxoidj"
+private const val DEFAULT_BASE_URL = "https://westmanga.me"
+private const val PREF_BASE_URL_KEY = "pref_base_url"
+private const val PREF_IMAGE_PROXY_KEY = "pref_image_proxy"
