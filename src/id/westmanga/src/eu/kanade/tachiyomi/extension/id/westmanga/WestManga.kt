@@ -241,8 +241,8 @@ class WestManga :
         val message = "wm-api-request"
         val key = timestamp + "GET" + url.encodedPath + accessKey + secretKey
         val mac = Mac.getInstance("HmacSHA256")
-        val secretKeySpec = SecretKeySpec(key.toByteArray(Charsets.UTF_8), "HmacSHA256")
-        mac.init(secretKeySpec)
+        val keySpec = SecretKeySpec(key.toByteArray(Charsets.UTF_8), "HmacSHA256")
+        mac.init(keySpec)
         val hash = mac.doFinal(message.toByteArray(Charsets.UTF_8))
         val signature = hash.joinToString("") { "%02x".format(it) }
 
