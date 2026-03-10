@@ -72,7 +72,7 @@ class KomikCast :
     }
 
     override val client: OkHttpClient = network.cloudflareClient.newBuilder()
-        .rateLimit(3)
+        .rateLimit(1)
         .build()
 
     override fun headersBuilder(): Headers.Builder = super.headersBuilder()
