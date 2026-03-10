@@ -27,71 +27,153 @@ class WestManga :
     HttpSource(),
     ConfigurableSource {
 
-    // ======================== Preferences ========================
-    private val preferences: SharedPreferences by lazy {
-        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
-    }
-
-    private val prefBaseUrl: String
-        get() = preferences.getString(PREF_BASE_URL_KEY, DEFAULT_BASE_URL)
-            ?.trimEnd('/')
-            ?.ifEmpty { DEFAULT_BASE_URL }
-            ?: DEFAULT_BASE_URL
-
-    private val prefImageProxy: String
-        get() = preferences.getString(PREF_IMAGE_PROXY_KEY, "")?.trim() ?: ""
-
-    // ======================== Source Info ========================
     override val name = "West Manga"
-    override val baseUrl get() = prefBaseUrl
     override val lang = "id"
     override val id = 8883916630998758688
     override val supportsLatest = true
 
     override val client = network.cloudflareClient
 
+    private val preferences: SharedPreferences by lazy {
+        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
+    }
+
+    override val baseUrl: String
+        get() = preferences.getString(PREF_DOMAIN, DEFAULT_BASE_URL)!!.trimEnd('/')
+
+    private val apiUrl: String
+        get() = preferences.getString(PREF_API_URL, DEFAULT_API_URL)!!.trimEnd('/')
+
+    private val imageResizeProxy: String
+        get() = preferences.getString(PREF_RESIZE_PROXY, "")!!.trimEnd('/')
+
+    // ──────────────────────────────────────────────
+    //  PreferenceScreen
+    // ──────────────────────────────────────────────
+
+    override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        EditTextPreference(screen.context).apply {
+            key = PREF_DOMAIN
+            title = "Override Base URL"
+            summary = "Domain utama WestManga (default: $DEFAULT_BASE_URL)\nNilai saat ini: ${baseUrl}"
+            setDefaultValue(DEFAULT_BASE_URL)
+            dialogTitle = "Base URL"
+            dialogMessage = "Contoh: https://westmanga.tv"
+            setOnPreferenceChangeListener { _, newValue ->
+                val v = (newValue as String).trim()
+                preferences.edit().putString(PREF_DOMAIN, v.ifBlank { DEFAULT_BASE_URL }).apply()
+                summary = "Domain utama WestManga (default: $DEFAULT_BASE_URL)\nNilai saat ini: $v"
+                true
+            }
+        }.also { screen.addPreference(it) }
+
+        EditTextPreference(screen.context).apply {
+            key = PREF_API_URL
+            title = "Override API URL"
+            summary = "Domain API WestManga (default: $DEFAULT_API_URL)\nNilai saat ini: ${apiUrl}"
+            setDefaultValue(DEFAULT_API_URL)
+            dialogTitle = "API URL"
+            dialogMessage = "Contoh: https://data.westmanga.tv"
+            setOnPreferenceChangeListener { _, newValue ->
+                val v = (newValue as String).trim()
+                preferences.edit().putString(PREF_API_URL, v.ifBlank { DEFAULT_API_URL }).apply()
+                summary = "Domain API WestManga (default: $DEFAULT_API_URL)\nNilai saat ini: $v"
+                true
+            }
+        }.also { screen.addPreference(it) }
+
+        EditTextPreference(screen.context).apply {
+            key = PREF_RESIZE_PROXY
+            title = "Image Resize Proxy (opsional)"
+            summary = "URL proxy resize gambar untuk halaman chapter.\n" +
+                "Kosongkan untuk memakai URL asli.\n" +
+                "Nilai saat ini: ${imageResizeProxy.ifBlank { "(tidak aktif)" }}"
+            setDefaultValue("")
+            dialogTitle = "Image Resize Proxy"
+            dialogMessage =
+                "Masukkan base URL proxy kamu. URL gambar asli akan diteruskan sebagai parameter 'url'.\n" +
+                    "Contoh: https://myproxy.example.com/resize"
+            setOnPreferenceChangeListener { _, newValue ->
+                val v = (newValue as String).trim()
+                preferences.edit().putString(PREF_RESIZE_PROXY, v).apply()
+                summary = "URL proxy resize gambar untuk halaman chapter.\n" +
+                    "Kosongkan untuk memakai URL asli.\n" +
+                    "Nilai saat ini: ${v.ifBlank { "(tidak aktif)" }}"
+                true
+            }
+        }.also { screen.addPreference(it) }
+    }
+
+    // ──────────────────────────────────────────────
+    //  Helper: proxy image URL
+    // ──────────────────────────────────────────────
+
+    /**
+     * Jika resize proxy diset, wrap [original] dengan proxy URL.
+     * Format akhir: <proxy>?url=<encoded original>
+     */
+    private fun proxiedImageUrl(original: String): String {
+        val proxy = imageResizeProxy
+        if (proxy.isBlank()) return original
+        return proxy.toHttpUrl().newBuilder()
+            .addQueryParameter("url", original)
+            .build()
+            .toString()
+    }
+
+    /**
+     * Untuk cover: pakai wsrv.nl dengan dimensi 110×150.
+     */
+    private fun coverUrl(original: String): String {
+        if (original.isBlank()) return original
+        return "https://wsrv.nl/".toHttpUrl().newBuilder()
+            .addQueryParameter("url", original)
+            .addQueryParameter("w", "110")
+            .addQueryParameter("h", "150")
+            .build()
+            .toString()
+    }
+
+    // ──────────────────────────────────────────────
+    //  Headers
+    // ──────────────────────────────────────────────
+
     override fun headersBuilder() = super.headersBuilder()
         .set("Referer", "$baseUrl/")
 
-    override fun popularMangaRequest(page: Int) =
-        searchMangaRequest(page, "", SortFilter.popular)
+    // ──────────────────────────────────────────────
+    //  Popular / Latest / Search
+    // ──────────────────────────────────────────────
 
-    override fun popularMangaParse(response: Response) =
-        searchMangaParse(response)
+    override fun popularMangaRequest(page: Int) = searchMangaRequest(page, "", SortFilter.popular)
 
-    override fun latestUpdatesRequest(page: Int) =
-        searchMangaRequest(page, "", SortFilter.latest)
+    override fun popularMangaParse(response: Response) = searchMangaParse(response)
 
-    override fun latestUpdatesParse(response: Response) =
-        searchMangaParse(response)
+    override fun latestUpdatesRequest(page: Int) = searchMangaRequest(page, "", SortFilter.latest)
+
+    override fun latestUpdatesParse(response: Response) = searchMangaParse(response)
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        val url = API_URL.toHttpUrl().newBuilder().apply {
+        val url = apiUrl.toHttpUrl().newBuilder().apply {
             addPathSegment("api")
             addPathSegment("contents")
-            if (query.isNotBlank()) {
-                addQueryParameter("q", query)
-            }
+            if (query.isNotBlank()) addQueryParameter("q", query)
             addQueryParameter("page", page.toString())
             addQueryParameter("per_page", "20")
             addQueryParameter("type", "Comic")
-            filters.filterIsInstance<UrlFilter>().forEach {
-                it.addToUrl(this)
-            }
+            filters.filterIsInstance<UrlFilter>().forEach { it.addToUrl(this) }
         }.build()
 
         return apiRequest(url)
     }
 
-    override fun getFilterList(): FilterList {
-        return FilterList(
-            SortFilter(),
-            StatusFilter(),
-            CountryFilter(),
-            ColorFilter(),
-            GenreFilter(),
-        )
-    }
+    override fun getFilterList(): FilterList = FilterList(
+        SortFilter(),
+        StatusFilter(),
+        CountryFilter(),
+        ColorFilter(),
+        GenreFilter(),
+    )
 
     override fun searchMangaParse(response: Response): MangasPage {
         val data = response.parseAs<PaginatedData<BrowseManga>>()
@@ -106,19 +188,23 @@ class WestManga :
                         .toString(),
                 )
                 title = it.title
-                thumbnail_url = it.cover
+                thumbnail_url = coverUrl(it.cover)
             }
         }
 
         return MangasPage(entries, data.paginator.hasNextPage())
     }
 
+    // ──────────────────────────────────────────────
+    //  Manga Details
+    // ──────────────────────────────────────────────
+
     override fun mangaDetailsRequest(manga: SManga): Request {
         val path = "$baseUrl${manga.url}".toHttpUrl().pathSegments
         assert(path.size == 3) { "Migrate from $name to $name" }
         val slug = path[1]
 
-        val url = API_URL.toHttpUrl().newBuilder()
+        val url = apiUrl.toHttpUrl().newBuilder()
             .addPathSegment("api")
             .addPathSegment("comic")
             .addPathSegment(slug)
@@ -129,12 +215,11 @@ class WestManga :
 
     override fun getMangaUrl(manga: SManga): String {
         val slug = "$baseUrl${manga.url}".toHttpUrl().pathSegments[1]
-        val url = baseUrl.toHttpUrl().newBuilder()
+        return baseUrl.toHttpUrl().newBuilder()
             .addPathSegment("comic")
             .addPathSegment(slug)
             .build()
-
-        return url.toString()
+            .toString()
     }
 
     override fun mangaDetailsParse(response: Response): SManga {
@@ -149,7 +234,7 @@ class WestManga :
                     .toString(),
             )
             title = data.title
-            thumbnail_url = data.cover
+            thumbnail_url = coverUrl(data.cover)
             author = data.author
             status = when (data.status) {
                 "ongoing" -> SManga.ONGOING
@@ -163,28 +248,26 @@ class WestManga :
                     "CN" -> add("Manhua")
                     "KR" -> add("Manhwa")
                 }
-                if (data.color == true) {
-                    add("Colored")
-                }
+                if (data.color == true) add("Colored")
                 data.genres.forEach { add(it.name) }
             }.joinToString()
             description = buildString {
                 data.synopsis?.let {
-                    append(
-                        Jsoup.parseBodyFragment(it).wholeText().trim(),
-                    )
+                    append(Jsoup.parseBodyFragment(it).wholeText().trim())
                 }
                 data.alternativeName?.let {
-                    append("\n\n")
-                    append("Alternative Name: ")
+                    append("\n\nAlternative Name: ")
                     append(it.trim())
                 }
             }
         }
     }
 
-    override fun chapterListRequest(manga: SManga) =
-        mangaDetailsRequest(manga)
+    // ──────────────────────────────────────────────
+    //  Chapter List
+    // ──────────────────────────────────────────────
+
+    override fun chapterListRequest(manga: SManga) = mangaDetailsRequest(manga)
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val data = response.parseAs<Data<Manga>>().data
@@ -203,12 +286,16 @@ class WestManga :
         }
     }
 
+    // ──────────────────────────────────────────────
+    //  Page List
+    // ──────────────────────────────────────────────
+
     override fun pageListRequest(chapter: SChapter): Request {
         val path = "$baseUrl${chapter.url}".toHttpUrl().pathSegments
         assert(path.size == 2) { "Refresh Chapter List" }
         val slug = path[0]
 
-        val url = API_URL.toHttpUrl().newBuilder()
+        val url = apiUrl.toHttpUrl().newBuilder()
             .addPathSegment("api")
             .addPathSegment("v")
             .addPathSegment(slug)
@@ -219,86 +306,54 @@ class WestManga :
 
     override fun getChapterUrl(chapter: SChapter): String {
         val slug = "$baseUrl${chapter.url}".toHttpUrl().pathSegments[0]
-        val url = baseUrl.toHttpUrl().newBuilder()
+        return baseUrl.toHttpUrl().newBuilder()
             .addPathSegment("view")
             .addPathSegment(slug)
-
-        return url.toString()
+            .toString()
     }
 
     override fun pageListParse(response: Response): List<Page> {
         val data = response.parseAs<Data<ImageList>>().data
-        val proxy = prefImageProxy
 
         return data.images.mapIndexed { idx, img ->
-            val finalUrl = if (proxy.isBlank()) img else "$proxy$img"
-            Page(idx, imageUrl = finalUrl)
+            Page(idx, imageUrl = proxiedImageUrl(img))
         }
     }
+
+    // ──────────────────────────────────────────────
+    //  API Request (HMAC signing)
+    // ──────────────────────────────────────────────
 
     private fun apiRequest(url: HttpUrl): Request {
         val timestamp = (System.currentTimeMillis() / 1000).toString()
         val message = "wm-api-request"
-        val key = timestamp + "GET" + url.encodedPath + accessKey + secretKey
+        val key = timestamp + "GET" + url.encodedPath + ACCESS_KEY + SECRET_KEY
         val mac = Mac.getInstance("HmacSHA256")
-        val keySpec = SecretKeySpec(key.toByteArray(Charsets.UTF_8), "HmacSHA256")
-        mac.init(keySpec)
+        val secretKeySpec = SecretKeySpec(key.toByteArray(Charsets.UTF_8), "HmacSHA256")
+        mac.init(secretKeySpec)
         val hash = mac.doFinal(message.toByteArray(Charsets.UTF_8))
         val signature = hash.joinToString("") { "%02x".format(it) }
 
         val apiHeaders = headersBuilder()
             .set("x-wm-request-time", timestamp)
-            .set("x-wm-accses-key", accessKey)
+            .set("x-wm-accses-key", ACCESS_KEY)
             .set("x-wm-request-signature", signature)
             .build()
 
         return GET(url, apiHeaders)
     }
 
-    override fun imageUrlParse(response: Response): String {
-        throw UnsupportedOperationException()
+    override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
+
+    companion object {
+        private const val DEFAULT_BASE_URL = "https://westmanga.tv"
+        private const val DEFAULT_API_URL = "https://data.westmanga.tv"
+
+        private const val PREF_DOMAIN = "pref_base_url"
+        private const val PREF_API_URL = "pref_api_url"
+        private const val PREF_RESIZE_PROXY = "pref_resize_proxy"
     }
-
-    // ======================== Preference Screen ========================
-    override fun setupPreferenceScreen(screen: PreferenceScreen) {
-        EditTextPreference(screen.context).apply {
-            key = PREF_BASE_URL_KEY
-            title = "Domain West Manga"
-            summary = prefBaseUrl
-            dialogTitle = "Domain West Manga"
-            dialogMessage = "Masukkan domain baru (contoh: https://westmanga.me)\nKosongkan untuk kembali ke default."
-            setDefaultValue(DEFAULT_BASE_URL)
-            setOnPreferenceChangeListener { pref, newValue ->
-                val value = (newValue as? String)?.trimEnd('/') ?: DEFAULT_BASE_URL
-                pref.summary = value.ifEmpty { DEFAULT_BASE_URL }
-                true
-            }
-            screen.addPreference(this)
-        }
-
-        EditTextPreference(screen.context).apply {
-            key = PREF_IMAGE_PROXY_KEY
-            title = "Proxy Resize Gambar"
-            summary = buildProxySummary(prefImageProxy)
-            dialogTitle = "Proxy Resize Gambar"
-            dialogMessage = "Masukkan prefix URL proxy.\nContoh: https://wsrv.nl/?url=\nKosongkan untuk nonaktif."
-            setDefaultValue("")
-            setOnPreferenceChangeListener { pref, newValue ->
-                val value = (newValue as? String)?.trim() ?: ""
-                pref.summary = buildProxySummary(value)
-                true
-            }
-            screen.addPreference(this)
-        }
-    }
-
-    private fun buildProxySummary(proxy: String): String =
-        if (proxy.isBlank()) "Nonaktif (gambar asli)" else proxy
 }
 
-private const val accessKey = "WM_WEB_FRONT_END"
-private const val secretKey = "xxxoidj"
-private const val API_URL = "https://data.westmanga.me"
-private const val DEFAULT_BASE_URL = "https://westmanga.me"
-private const val PREF_BASE_URL_KEY = "pref_base_url"
-private const val PREF_IMAGE_PROXY_KEY = "pref_image_proxy"
+private const val ACCESS_KEY = "WM_WEB_FRONT_END"
+private const val SECRET_KEY = "xxxoidj"
