@@ -77,10 +77,11 @@ class KomikCast :
         .build()
 
     override fun headersBuilder(): Headers.Builder = super.headersBuilder()
-        .add("Referer", "$baseUrl/")
-        .add("Origin", baseUrl)
+        .add("Referer", "$apiUrl/")
+        .add("Origin", apiUrl)
         .add("Accept", "application/json")
         .add("Accept-language", "en-US,en;q=0.9,id;q=0.8")
+        .add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
     override fun popularMangaRequest(page: Int): Request {
         val url = "$apiUrl/series".toHttpUrl().newBuilder()
