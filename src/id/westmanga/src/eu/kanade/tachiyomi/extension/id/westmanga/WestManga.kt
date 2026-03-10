@@ -111,7 +111,8 @@ class WestManga :
     private fun proxiedImageUrl(original: String): String {
         val proxy = imageResizeProxy
         if (proxy.isBlank()) return original
-        return "$proxy$original"
+        val base = if (proxy.endsWith("/")) proxy else "$proxy/"
+        return "$base$original"
     }
 
     private fun coverUrl(original: String): String {
