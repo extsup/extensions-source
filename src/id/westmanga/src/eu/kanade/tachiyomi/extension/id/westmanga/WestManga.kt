@@ -114,19 +114,10 @@ class WestManga :
         return "$proxy$original"
     }
 
-    /**
-     * Untuk cover: pakai wsrv.nl dengan dimensi 110×150.
-     */
     private fun coverUrl(original: String): String {
         if (original.isBlank()) return original
-        return "https://wsrv.nl/".toHttpUrl().newBuilder()
-            .addQueryParameter("url", original)
-            .addQueryParameter("w", "110")
-            .addQueryParameter("h", "150")
-            .build()
-            .toString()
+        return "https://wsrv.nl/?w=110&h=150&url=$original"
     }
-
     // ──────────────────────────────────────────────
     //  Headers
     // ──────────────────────────────────────────────
