@@ -279,19 +279,21 @@ class WestManga :
         EditTextPreference(screen.context).apply {
             key = PREF_IMAGE_PROXY_KEY
             title = "Proxy Resize Gambar"
-            summary = if (prefImageProxy.isBlank()) "Nonaktif (gambar asli)" else prefImageProxy
+            summary = buildProxySummary(prefImageProxy)
             dialogTitle = "Proxy Resize Gambar"
             dialogMessage = "Masukkan prefix URL proxy.\nContoh: https://wsrv.nl/?url=\nKosongkan untuk nonaktif."
             setDefaultValue("")
             setOnPreferenceChangeListener { pref, newValue ->
                 val value = (newValue as? String)?.trim() ?: ""
-                pref.summary = if (value.isBlank()) "Nonaktif (gambar asli)" else value
+                pref.summary = buildProxySummary(value)
                 true
             }
             screen.addPreference(this)
         }
     }
 
+    private fun buildProxySummary(proxy: String): String =
+        if (proxy.isBlank()) "Nonaktif (gambar asli)" else proxy
 }
 
 private const val accessKey = "WM_WEB_FRONT_END"
