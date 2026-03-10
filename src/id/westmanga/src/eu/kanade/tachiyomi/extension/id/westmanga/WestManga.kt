@@ -44,7 +44,6 @@ class WestManga :
     // ======================== Source Info ========================
     override val name = "West Manga"
     override val baseUrl get() = prefBaseUrl
-    private val apiUrl = "https://data.westmanga.me"
     override val lang = "id"
     override val id = 8883916630998758688
     override val supportsLatest = true
@@ -67,7 +66,7 @@ class WestManga :
         searchMangaParse(response)
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        val url = apiUrl.toHttpUrl().newBuilder().apply {
+        val url = API_URL.toHttpUrl().newBuilder().apply {
             addPathSegment("api")
             addPathSegment("contents")
             if (query.isNotBlank()) {
@@ -119,7 +118,7 @@ class WestManga :
         assert(path.size == 3) { "Migrate from $name to $name" }
         val slug = path[1]
 
-        val url = apiUrl.toHttpUrl().newBuilder()
+        val url = API_URL.toHttpUrl().newBuilder()
             .addPathSegment("api")
             .addPathSegment("comic")
             .addPathSegment(slug)
@@ -209,7 +208,7 @@ class WestManga :
         assert(path.size == 2) { "Refresh Chapter List" }
         val slug = path[0]
 
-        val url = apiUrl.toHttpUrl().newBuilder()
+        val url = API_URL.toHttpUrl().newBuilder()
             .addPathSegment("api")
             .addPathSegment("v")
             .addPathSegment(slug)
@@ -297,6 +296,7 @@ class WestManga :
 
 private const val accessKey = "WM_WEB_FRONT_END"
 private const val secretKey = "xxxoidj"
+private const val API_URL = "https://data.westmanga.me"
 private const val DEFAULT_BASE_URL = "https://westmanga.me"
 private const val PREF_BASE_URL_KEY = "pref_base_url"
 private const val PREF_IMAGE_PROXY_KEY = "pref_image_proxy"
