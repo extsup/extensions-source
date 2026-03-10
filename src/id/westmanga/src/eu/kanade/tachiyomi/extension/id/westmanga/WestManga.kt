@@ -1,6 +1,11 @@
 package eu.kanade.tachiyomi.extension.id.westmanga
 
+import android.app.Application
+import android.content.SharedPreferences
+import androidx.preference.EditTextPreference
+import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -13,12 +18,32 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.Jsoup
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
-class WestManga : HttpSource() {
+class WestManga :
+    HttpSource(),
+    ConfigurableSource {
+
+    // ======================== Preferences ========================
+    private val preferences: SharedPreferences by lazy {
+        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
+    }
+
+    private val prefBaseUrl: String
+        get() = preferences.getString(PREF_BASE_URL_KEY, DEFAULT_BASE_URL)
+            ?.trimEnd('/')
+            ?.ifEmpty { DEFAULT_BASE_URL }
+            ?: DEFAULT_BASE_URL
+
+    private val prefImageProxy: String
+        get() = preferences.getString(PREF_IMAGE_PROXY_KEY, "")?.trim() ?: ""
+
+    // ======================== Source Info ========================
     override val name = "West Manga"
-    override val baseUrl = "https://westmanga.me"
+    override val baseUrl get() = prefBaseUrl
     private val apiUrl = "https://data.westmanga.me"
     override val lang = "id"
     override val id = 8883916630998758688
@@ -74,7 +99,6 @@ class WestManga : HttpSource() {
 
         val entries = data.data.map {
             SManga.create().apply {
-                // old urls compatibility
                 setUrlWithoutDomain(
                     baseUrl.toHttpUrl().newBuilder()
                         .addPathSegment("manga")
@@ -118,7 +142,6 @@ class WestManga : HttpSource() {
         val data = response.parseAs<Data<Manga>>().data
 
         return SManga.create().apply {
-            // old urls compatibility
             setUrlWithoutDomain(
                 baseUrl.toHttpUrl().newBuilder()
                     .addPathSegment("manga")
@@ -206,9 +229,11 @@ class WestManga : HttpSource() {
 
     override fun pageListParse(response: Response): List<Page> {
         val data = response.parseAs<Data<ImageList>>().data
+        val proxy = prefImageProxy
 
         return data.images.mapIndexed { idx, img ->
-            Page(idx, imageUrl = img)
+            val finalUrl = if (proxy.isBlank()) img else "$proxy$img"
+            Page(idx, imageUrl = finalUrl)
         }
     }
 
@@ -233,6 +258,45 @@ class WestManga : HttpSource() {
 
     override fun imageUrlParse(response: Response): String {
         throw UnsupportedOperationException()
+    }
+
+    // ======================== Preference Screen ========================
+    override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        EditTextPreference(screen.context).apply {
+            key = PREF_BASE_URL_KEY
+            title = "Domain West Manga"
+            summary = prefBaseUrl
+            dialogTitle = "Domain West Manga"
+            dialogMessage = "Masukkan domain baru (contoh: https://westmanga.me)\nKosongkan untuk kembali ke default."
+            setDefaultValue(DEFAULT_BASE_URL)
+            setOnPreferenceChangeListener { pref, newValue ->
+                val value = (newValue as? String)?.trimEnd('/') ?: DEFAULT_BASE_URL
+                pref.summary = value.ifEmpty { DEFAULT_BASE_URL }
+                true
+            }
+            screen.addPreference(this)
+        }
+
+        EditTextPreference(screen.context).apply {
+            key = PREF_IMAGE_PROXY_KEY
+            title = "Proxy Resize Gambar"
+            summary = if (prefImageProxy.isBlank()) "Nonaktif (gambar asli)" else prefImageProxy
+            dialogTitle = "Proxy Resize Gambar"
+            dialogMessage = "Masukkan prefix URL proxy.\nContoh: https://wsrv.nl/?url=\nKosongkan untuk nonaktif."
+            setDefaultValue("")
+            setOnPreferenceChangeListener { pref, newValue ->
+                val value = (newValue as? String)?.trim() ?: ""
+                pref.summary = if (value.isBlank()) "Nonaktif (gambar asli)" else value
+                true
+            }
+            screen.addPreference(this)
+        }
+    }
+
+    companion object {
+        private const val DEFAULT_BASE_URL = "https://westmanga.me"
+        private const val PREF_BASE_URL_KEY = "pref_base_url"
+        private const val PREF_IMAGE_PROXY_KEY = "pref_image_proxy"
     }
 }
 
