@@ -159,7 +159,7 @@ class KomikuCC : ParsedHttpSource() {
 
     class OrderFilter : Filter.Select<String>(
         "Order",
-        arrayOf("Semua", "az", "za", "update", "new", "popular"),
+        arrayOf("Semua", "az", "za", "update", "latest", "popular"),
         0,
     )
 }
