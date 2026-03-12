@@ -15,9 +15,9 @@ import org.jsoup.nodes.Element
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-class Komiku : ParsedHttpSource() {
+class KomikuCC : ParsedHttpSource() {
 
-    override val name = "Komiku"
+    override val name = "Komiku CC"
     override val baseUrl = "https://komiku.cc"
     override val lang = "id"
     override val supportsLatest = true
