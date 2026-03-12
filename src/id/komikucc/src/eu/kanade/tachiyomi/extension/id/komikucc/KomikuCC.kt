@@ -1,4 +1,4 @@
-package eu.kanade.tachiyomi.extension.id.komiku
+package eu.kanade.tachiyomi.extension.id.komikucc
 
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.model.Filter
