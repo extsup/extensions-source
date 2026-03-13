@@ -57,7 +57,7 @@ class KomikCast :
         private const val PREF_DOMAIN_KEY = "pref_custom_domain"
         private const val PREF_IMAGE_PROXY_KEY = "pref_image_proxy"
         private const val PREF_COVER_PROXY_KEY = "pref_cover_proxy"
-        private const val DEFAULT_COVER_PROXY = "https://proxygambar.vercel.app/api/gambar?w=110&h=150&url="
+        private const val DEFAULT_COVER_PROXY = "https://coverproxy.vercel.app/cover?w=110&h=150&url="
     }
 
     override val baseUrl get() = prefDomain
