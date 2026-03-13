@@ -1,9 +1,13 @@
 package eu.kanade.tachiyomi.extension.id.komikucc
 
+import android.app.Application
+import android.content.SharedPreferences
+import androidx.preference.EditTextPreference
+import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
-import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
@@ -12,15 +16,68 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
-import java.text.SimpleDateFormat
-import java.util.Locale
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
-class KomikuCC : ParsedHttpSource() {
+class KomikuCC : ParsedHttpSource(), ConfigurableSource {
+
+    private val preferences: SharedPreferences by lazy {
+        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
+    }
 
     override val name = "Komiku CC"
-    override val baseUrl = "https://komiku.cc"
     override val lang = "id"
     override val supportsLatest = true
+
+    override val baseUrl: String
+        get() = preferences.getString(PREF_DOMAIN, DEFAULT_DOMAIN)!!.trimEnd('/')
+
+    private val resizeUrl: String
+        get() = preferences.getString(PREF_RESIZE_URL, DEFAULT_RESIZE_URL)!!
+
+    private val coverResizeUrl: String
+        get() = preferences.getString(PREF_COVER_RESIZE_URL, DEFAULT_COVER_RESIZE_URL)!!
+
+    // ==================== Preference Screen ====================
+
+    override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        EditTextPreference(screen.context).apply {
+            key = PREF_DOMAIN
+            title = "Domain Override"
+            summary = "Ganti base URL sumber. Default: $DEFAULT_DOMAIN"
+            setDefaultValue(DEFAULT_DOMAIN)
+            dialogTitle = "Domain"
+            dialogMessage = "Contoh: https://komiku.cc"
+        }.also(screen::addPreference)
+
+        EditTextPreference(screen.context).apply {
+            key = PREF_RESIZE_URL
+            title = "Resize Service URL (Halaman)"
+            summary = "Prefix URL proxy untuk gambar halaman baca. Default: $DEFAULT_RESIZE_URL"
+            setDefaultValue(DEFAULT_RESIZE_URL)
+            dialogTitle = "Resize URL Halaman"
+            dialogMessage = "Contoh: https://wsrv.nl/?url= — kosongkan untuk tanpa proxy"
+        }.also(screen::addPreference)
+
+        EditTextPreference(screen.context).apply {
+            key = PREF_COVER_RESIZE_URL
+            title = "Resize Service URL (Cover)"
+            summary = "Prefix URL proxy untuk cover manga. Default: $DEFAULT_COVER_RESIZE_URL"
+            setDefaultValue(DEFAULT_COVER_RESIZE_URL)
+            dialogTitle = "Resize URL Cover"
+            dialogMessage = "Contoh: https://wsrv.nl/?url= — kosongkan untuk tanpa proxy"
+        }.also(screen::addPreference)
+    }
+
+    private fun proxiedPageUrl(originalUrl: String): String {
+        val prefix = resizeUrl.trim()
+        return if (prefix.isBlank()) originalUrl else "$prefix$originalUrl"
+    }
+
+    private fun proxiedCoverUrl(originalUrl: String): String {
+        val prefix = coverResizeUrl.trim()
+        return if (prefix.isBlank()) originalUrl else "$prefix$originalUrl"
+    }
 
     // ==================== Popular ====================
 
@@ -33,6 +90,7 @@ class KomikuCC : ParsedHttpSource() {
         setUrlWithoutDomain(element.attr("href"))
         title = element.selectFirst("h3")?.text() ?: ""
         thumbnail_url = element.selectFirst("img")?.attr("src")
+            ?.let { proxiedCoverUrl(it) }
     }
 
     override fun popularMangaNextPageSelector() =
@@ -81,9 +139,14 @@ class KomikuCC : ParsedHttpSource() {
 
     override fun mangaDetailsParse(document: Document): SManga = SManga.create().apply {
         thumbnail_url = document.selectFirst("img[src*='cdn.komiku.cc/uploads']")?.attr("src")
+            ?.let { proxiedCoverUrl(it) }
         title = document.selectFirst("h1.text-xl")?.text() ?: ""
         author = document.selectFirst("li:has(span.font-medium:contains(Author:)) span.text-sm:last-child")?.text()
-        genre = document.select("ul.flex li.bg-zinc-700").joinToString { it.text() }
+
+        val genres = document.select("ul.flex li.bg-zinc-700").map { it.text() }
+        val type = document.selectFirst("li:has(span.font-medium:contains(Type:)) span.text-sm:last-child")?.text()
+        genre = (genres + listOfNotNull(type)).joinToString(", ")
+
         description = document.selectFirst("p.line-clamp-4")?.text()
 
         val statusText = document.selectFirst("span.bg-gray-100")?.text()?.lowercase() ?: ""
@@ -100,7 +163,6 @@ class KomikuCC : ParsedHttpSource() {
     override fun chapterListSelector() = "div.chapterlists div.w-full a[href]"
 
     override fun chapterFromElement(element: Element): SChapter = SChapter.create().apply {
-        // Chapter URL pattern: /{manga_link}-chapter-{n} (no /komik/ prefix)
         setUrlWithoutDomain(element.attr("href"))
         name = element.selectFirst("span.chaptertitle")?.text() ?: element.text()
         date_upload = parseRelativeDate(element.selectFirst("span.text-zinc-400")?.text() ?: "")
@@ -111,7 +173,7 @@ class KomikuCC : ParsedHttpSource() {
     override fun pageListParse(document: Document): List<Page> {
         return document.select("div.touch-manipulation img[src*='cdn.komiku.cc/images']")
             .mapIndexed { index, img ->
-                Page(index, "", img.attr("src"))
+                Page(index, "", proxiedPageUrl(img.attr("src")))
             }
     }
 
@@ -162,4 +224,16 @@ class KomikuCC : ParsedHttpSource() {
         arrayOf("Semua", "az", "za", "update", "latest", "popular"),
         0,
     )
+
+    // ==================== Companion ====================
+
+    companion object {
+        private const val PREF_DOMAIN = "pref_domain"
+        private const val PREF_RESIZE_URL = "pref_resize_url"
+        private const val PREF_COVER_RESIZE_URL = "pref_cover_resize_url"
+
+        private const val DEFAULT_DOMAIN = "https://komiku.cc"
+        private const val DEFAULT_RESIZE_URL = "https://wsrv.nl/?url="
+        private const val DEFAULT_COVER_RESIZE_URL = "https://wsrv.nl/?url="
+    }
 }
