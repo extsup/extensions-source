@@ -30,8 +30,8 @@ class KomikuCC : ParsedHttpSource(), ConfigurableSource {
     override val supportsLatest = true
 
     private val defaultDomain = "https://komiku.cc"
-    private val defaultResizeUrl = "https://wsrv.nl/?url="
-    private val defaultCoverResizeUrl = "https://wsrv.nl/?url="
+    private val defaultResizeUrl = ""
+    private val defaultCoverResizeUrl = ""
 
     override val baseUrl: String
         get() = preferences.getString(PREF_DOMAIN, defaultDomain)!!.trimEnd('/')
