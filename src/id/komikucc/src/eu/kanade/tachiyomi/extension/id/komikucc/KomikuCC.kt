@@ -29,14 +29,18 @@ class KomikuCC : ParsedHttpSource(), ConfigurableSource {
     override val lang = "id"
     override val supportsLatest = true
 
+    private val defaultDomain = "https://komiku.cc"
+    private val defaultResizeUrl = "https://wsrv.nl/?url="
+    private val defaultCoverResizeUrl = "https://wsrv.nl/?url="
+
     override val baseUrl: String
-        get() = preferences.getString(PREF_DOMAIN, DEFAULT_DOMAIN)!!.trimEnd('/')
+        get() = preferences.getString(PREF_DOMAIN, defaultDomain)!!.trimEnd('/')
 
     private val resizeUrl: String
-        get() = preferences.getString(PREF_RESIZE_URL, DEFAULT_RESIZE_URL)!!
+        get() = preferences.getString(PREF_RESIZE_URL, defaultResizeUrl)!!
 
     private val coverResizeUrl: String
-        get() = preferences.getString(PREF_COVER_RESIZE_URL, DEFAULT_COVER_RESIZE_URL)!!
+        get() = preferences.getString(PREF_COVER_RESIZE_URL, defaultCoverResizeUrl)!!
 
     // ==================== Preference Screen ====================
 
@@ -44,8 +48,8 @@ class KomikuCC : ParsedHttpSource(), ConfigurableSource {
         EditTextPreference(screen.context).apply {
             key = PREF_DOMAIN
             title = "Domain Override"
-            summary = "Ganti base URL sumber. Default: $DEFAULT_DOMAIN"
-            setDefaultValue(DEFAULT_DOMAIN)
+            summary = "Ganti base URL sumber. Default: $defaultDomain"
+            setDefaultValue(defaultDomain)
             dialogTitle = "Domain"
             dialogMessage = "Contoh: https://komiku.cc"
         }.also(screen::addPreference)
@@ -53,8 +57,8 @@ class KomikuCC : ParsedHttpSource(), ConfigurableSource {
         EditTextPreference(screen.context).apply {
             key = PREF_RESIZE_URL
             title = "Resize Service URL (Halaman)"
-            summary = "Prefix URL proxy untuk gambar halaman baca. Default: $DEFAULT_RESIZE_URL"
-            setDefaultValue(DEFAULT_RESIZE_URL)
+            summary = "Prefix URL proxy untuk gambar halaman baca. Default: $defaultResizeUrl"
+            setDefaultValue(defaultResizeUrl)
             dialogTitle = "Resize URL Halaman"
             dialogMessage = "Contoh: https://wsrv.nl/?url= — kosongkan untuk tanpa proxy"
         }.also(screen::addPreference)
@@ -62,8 +66,8 @@ class KomikuCC : ParsedHttpSource(), ConfigurableSource {
         EditTextPreference(screen.context).apply {
             key = PREF_COVER_RESIZE_URL
             title = "Resize Service URL (Cover)"
-            summary = "Prefix URL proxy untuk cover manga. Default: $DEFAULT_COVER_RESIZE_URL"
-            setDefaultValue(DEFAULT_COVER_RESIZE_URL)
+            summary = "Prefix URL proxy untuk cover manga. Default: $defaultCoverResizeUrl"
+            setDefaultValue(defaultCoverResizeUrl)
             dialogTitle = "Resize URL Cover"
             dialogMessage = "Contoh: https://wsrv.nl/?url= — kosongkan untuk tanpa proxy"
         }.also(screen::addPreference)
@@ -231,9 +235,5 @@ class KomikuCC : ParsedHttpSource(), ConfigurableSource {
         private const val PREF_DOMAIN = "pref_domain"
         private const val PREF_RESIZE_URL = "pref_resize_url"
         private const val PREF_COVER_RESIZE_URL = "pref_cover_resize_url"
-
-        private const val DEFAULT_DOMAIN = "https://komiku.cc"
-        private const val DEFAULT_RESIZE_URL = "https://wsrv.nl/?url="
-        private const val DEFAULT_COVER_RESIZE_URL = "https://wsrv.nl/?url="
     }
 }
