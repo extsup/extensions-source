@@ -59,7 +59,6 @@ class Softkomik :
         private const val PREF_IMAGE_PROXY_KEY = "pref_image_proxy"
     }
 
-    // Cover di-resize via wsrv.nl dengan ukuran thumbnail standar
     private fun coverUrl(gambar: String): String {
         val original = "$COVER_URL/${gambar.removePrefix("/")}"
         return "https://wsrv.nl/?url=$original&w=110&h=150&fit=cover"
@@ -164,7 +163,7 @@ class Softkomik :
     }
 
     private fun chapterHeaders(): Headers {
-        val sess = session ?: throw Exception("Session tidak tersedia")
+        val sess = session ?: fetchSession().also { session = it }
         return headersBuilder()
             .add("X-Token", sess.token)
             .add("X-Sign", sess.sign)
@@ -196,7 +195,7 @@ class Softkomik :
         val dto = response.parseAs<LibDataDto>()
         val mangas = dto.data.map { manga ->
             SManga.create().apply {
-                setUrlWithoutDomain(manga.title_slug)
+                setUrlWithoutDomain("/komik/${manga.title_slug}")
                 title = manga.title
                 thumbnail_url = coverUrl(manga.gambar)
             }
@@ -204,11 +203,9 @@ class Softkomik :
         return MangasPage(mangas, dto.page < dto.maxPage)
     }
 
-
     // ======================== Search ========================
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         val url = if (query.isNotEmpty()) {
-            // Search teks pakai API v2 langsung (sama dengan popular/latest)
             "$CHAPTER_URL/komik".toHttpUrl().newBuilder()
                 .addQueryParameter("name", query)
                 .addQueryParameter("page", page.toString())
@@ -243,7 +240,7 @@ class Softkomik :
             val dto = response.parseAs<LibDataDto>()
             val mangas = dto.data.map { manga ->
                 SManga.create().apply {
-                    setUrlWithoutDomain(manga.title_slug)
+                    setUrlWithoutDomain("/komik/${manga.title_slug}")
                     title = manga.title
                     thumbnail_url = coverUrl(manga.gambar)
                 }
@@ -253,7 +250,7 @@ class Softkomik :
             val dto = response.parseAs<LibraryDto>()
             val mangas = dto.pageProps.libData.data.map { manga ->
                 SManga.create().apply {
-                    setUrlWithoutDomain(manga.title_slug)
+                    setUrlWithoutDomain("/komik/${manga.title_slug}")
                     title = manga.title
                     thumbnail_url = coverUrl(manga.gambar)
                 }
@@ -264,14 +261,14 @@ class Softkomik :
 
     // ======================== Details ========================
     override fun mangaDetailsRequest(manga: SManga): Request =
-        GET("$baseUrl/_next/data/$buildId/${manga.url}.json", headers)
+        GET("$baseUrl/_next/data/$buildId${manga.url}.json", headers)
 
     override fun mangaDetailsParse(response: Response): SManga {
         val dto = response.parseAs<DetailsDto>()
         val manga = dto.pageProps.data
         val slug = response.request.url.pathSegments.lastOrNull()!!.removeSuffix(".json")
         return SManga.create().apply {
-            setUrlWithoutDomain(slug)
+            setUrlWithoutDomain("/komik/$slug")
             title = manga.title
             author = manga.author
             description = manga.sinopsis
@@ -285,11 +282,14 @@ class Softkomik :
         }
     }
 
-    override fun getMangaUrl(manga: SManga): String = "$baseUrl/${manga.url}"
+    override fun getMangaUrl(manga: SManga): String = "$baseUrl${manga.url}"
 
     // ======================== Chapters ========================
-    override fun chapterListRequest(manga: SManga): Request =
-        GET("$CHAPTER_URL/komik/${manga.url}/chapter?limit=9999999", chapterHeaders())
+    override fun chapterListRequest(manga: SManga): Request {
+        // manga.url = "/komik/title-slug", ambil slug-nya saja
+        val slug = manga.url.removePrefix("/komik/")
+        return GET("$CHAPTER_URL/komik/$slug/chapter?limit=9999999", chapterHeaders())
+    }
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val dto = response.parseAs<ChapterListDto>()
@@ -298,7 +298,7 @@ class Softkomik :
             val chapterNum = chapter.chapter.toFloatOrNull() ?: -1f
             val displayNum = formatChapterDisplay(chapter.chapter)
             SChapter.create().apply {
-                url = "/$slug/chapter/${chapter.chapter}"
+                url = "/komik/$slug/chapter/${chapter.chapter}"
                 name = "Chapter $displayNum"
                 chapter_number = chapterNum
             }
