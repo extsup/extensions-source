@@ -183,25 +183,14 @@ class Softkomik :
 
     // ======================== Latest ========================
     override fun latestUpdatesRequest(page: Int): Request {
-        val url = "$CHAPTER_URL/komik".toHttpUrl().newBuilder()
-            .addQueryParameter("page", page.toString())
-            .addQueryParameter("limit", "24")
+        val url = "$baseUrl/_next/data/$buildId/komik/library.json".toHttpUrl().newBuilder()
             .addQueryParameter("sortBy", "new")
+            .addQueryParameter("page", page.toString())
             .build()
-        return GET(url, chapterHeaders())
+        return GET(url, headers)
     }
 
-    override fun latestUpdatesParse(response: Response): MangasPage {
-        val dto = response.parseAs<LibDataDto>()
-        val mangas = dto.data.map { manga ->
-            SManga.create().apply {
-                setUrlWithoutDomain("/komik/${manga.title_slug}")
-                title = manga.title
-                thumbnail_url = coverUrl(manga.gambar)
-            }
-        }
-        return MangasPage(mangas, dto.page < dto.maxPage)
-    }
+    override fun latestUpdatesParse(response: Response) = searchMangaParse(response)
 
     // ======================== Search ========================
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
@@ -286,7 +275,6 @@ class Softkomik :
 
     // ======================== Chapters ========================
     override fun chapterListRequest(manga: SManga): Request {
-        // manga.url = "/komik/title-slug", ambil slug-nya saja
         val slug = manga.url.removePrefix("/komik/")
         return GET("$CHAPTER_URL/komik/$slug/chapter?limit=9999999", chapterHeaders())
     }
