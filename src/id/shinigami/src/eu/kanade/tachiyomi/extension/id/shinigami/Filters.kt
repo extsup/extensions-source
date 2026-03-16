@@ -12,12 +12,11 @@ open class UriPartFilter(
     private val param: String,
     private val vals: Array<Pair<String, String>>,
     private val default: String = "",
-) : Filter.Select<String>(
+) : UriFilter, Filter.Select<String>(
     name,
     vals.map { it.first }.toTypedArray(),
     vals.indexOfFirst { it.second == default }.takeIf { it != -1 } ?: 0,
-),
-    UriFilter {
+) {
     override fun addToUri(builder: HttpUrl.Builder) {
         val selected = vals[state].second
         if (selected.isNotEmpty()) {
@@ -32,11 +31,10 @@ open class UriMultiSelectFilter(
     name: String,
     private val param: String,
     private val options: Array<Pair<String, String>>,
-) : Filter.Group<UriMultiSelectOption>(
+) : UriFilter, Filter.Group<UriMultiSelectOption>(
     name,
     options.map { UriMultiSelectOption(it.first, it.second) },
-),
-    UriFilter {
+) {
     override fun addToUri(builder: HttpUrl.Builder) {
         val selected = state.filter { it.state }.map { it.value }
         if (selected.isNotEmpty()) {
@@ -52,11 +50,10 @@ open class UriMultiTriSelectFilter(
     private val includeParam: String,
     private val excludeParam: String,
     private val options: Array<Pair<String, String>>,
-) : Filter.Group<UriMultiTriSelectOption>(
+) : UriFilter, Filter.Group<UriMultiTriSelectOption>(
     name,
     options.map { UriMultiTriSelectOption(it.first, it.second) },
-),
-    UriFilter {
+) {
     override fun addToUri(builder: HttpUrl.Builder) {
         val included = state.filter { it.isIncluded() }.map { it.value }
         val excluded = state.filter { it.isExcluded() }.map { it.value }
@@ -72,66 +69,60 @@ open class UriMultiTriSelectFilter(
     }
 }
 
-class SortFilter(default: String = "") :
-    UriPartFilter(
-        "Sort",
-        "sort",
-        arrayOf(
-            Pair("Default", ""),
-            Pair("Latest", "latest"),
-            Pair("Popularity", "popularity"),
-            Pair("Rating", "rating"),
-        ),
-        default,
-    )
+class SortFilter(default: String = "") : UriPartFilter(
+    "Sort",
+    "sort",
+    arrayOf(
+        Pair("Default", ""),
+        Pair("Latest", "latest"),
+        Pair("Popularity", "popularity"),
+        Pair("Rating", "rating"),
+    ),
+    default,
+)
 
-class SortOrderFilter :
-    UriPartFilter(
-        "Sort Order",
-        "sort_order",
-        arrayOf(
-            Pair("Descending", "desc"),
-            Pair("Ascending", "asc"),
-        ),
-    )
+class SortOrderFilter : UriPartFilter(
+    "Sort Order",
+    "sort_order",
+    arrayOf(
+        Pair("Descending", "desc"),
+        Pair("Ascending", "asc"),
+    ),
+)
 
-class StatusFilter :
-    UriPartFilter(
-        "Status",
-        "status",
-        arrayOf(
-            Pair("All", ""),
-            Pair("Ongoing", "ongoing"),
-            Pair("Completed", "completed"),
-            Pair("Hiatus", "hiatus"),
-        ),
-    )
+class StatusFilter : UriPartFilter(
+    "Status",
+    "status",
+    arrayOf(
+        Pair("All", ""),
+        Pair("Ongoing", "ongoing"),
+        Pair("Completed", "completed"),
+        Pair("Hiatus", "hiatus"),
+    ),
+)
 
-class FormatFilter :
-    UriMultiSelectFilter(
-        "Format",
-        "format",
-        arrayOf(
-            Pair("Manga", "manga"),
-            Pair("Manhwa", "manhwa"),
-            Pair("Manhua", "manhua"),
-        ),
-    )
+class FormatFilter : UriMultiSelectFilter(
+    "Format",
+    "format",
+    arrayOf(
+        Pair("Manga", "manga"),
+        Pair("Manhwa", "manhwa"),
+        Pair("Manhua", "manhua"),
+    ),
+)
 
-class TypeFilter :
-    UriMultiSelectFilter(
-        "Type",
-        "type",
-        arrayOf(
-            Pair("Project", "project"),
-            Pair("Mirror", "mirror"),
-        ),
-    )
+class TypeFilter : UriMultiSelectFilter(
+    "Type",
+    "type",
+    arrayOf(
+        Pair("Project", "project"),
+        Pair("Mirror", "mirror"),
+    ),
+)
 
-class GenreFilter(genres: Array<Pair<String, String>>) :
-    UriMultiTriSelectFilter(
-        "Genre",
-        "genre_include",
-        "genre_exclude",
-        genres,
-    )
+class GenreFilter(genres: Array<Pair<String, String>>) : UriMultiTriSelectFilter(
+    "Genre",
+    "genre_include",
+    "genre_exclude",
+    genres,
+)

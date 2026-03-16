@@ -55,15 +55,16 @@ data class SeriesDetailResponse(
 
 @Serializable
 data class ChapterItem(
+    val id: Int? = null,
     val data: ChapterData,
     val createdAt: String? = null,
     val updatedAt: String? = null,
-    val chapterIndex: Float? = null,
 )
 
 @Serializable
 data class ChapterData(
-    val index: Float? = null,
+    val slug: String? = null,
+    val index: Float? = null,       // Nullable karena tidak ada di response chapter detail
     val title: String? = null,
     val images: List<String>? = null,
 )
@@ -75,6 +76,8 @@ data class ChapterListResponse(
 
 @Serializable
 data class ChapterDetailResponse(
+    val status: Int? = null,
+    val message: String? = null,
     val data: ChapterItem,
 )
 
@@ -96,7 +99,7 @@ fun SeriesItem.toSManga(): SManga = SManga.create().apply {
 }
 
 fun ChapterItem.toSChapter(seriesSlug: String?): SChapter = SChapter.create().apply {
-    val chapterIndex = (data.index ?: chapterIndex)!!
+    val chapterIndex = data.index ?: 0f  // Fallback ke 0 jika index null
     val formattedIndex = formatChapterNumber(chapterIndex)
     url = "/series/$seriesSlug/chapters/$chapterIndex"
     name = if (data.title.isNullOrBlank()) {
@@ -110,7 +113,9 @@ fun ChapterItem.toSChapter(seriesSlug: String?): SChapter = SChapter.create().ap
 
 private val chapterNumberFormatter = DecimalFormat("#.##")
 
-private fun formatChapterNumber(number: Float): String = chapterNumberFormatter.format(number)
+private fun formatChapterNumber(number: Float): String {
+    return chapterNumberFormatter.format(number)
+}
 
 private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.ROOT)
 

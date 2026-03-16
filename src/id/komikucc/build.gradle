@@ -1,0 +1,7 @@
+ext {
+    extName = 'Komiku CC'
+    extClass = '.KomikuCC'
+    extVersionCode = 1
+}
+
+apply from: "$rootDir/common.gradle"
