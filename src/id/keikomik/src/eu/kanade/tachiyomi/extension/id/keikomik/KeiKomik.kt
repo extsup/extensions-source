@@ -1,7 +1,5 @@
 package eu.kanade.tachiyomi.extension.id.keikomik
 
-import eu.kanade.tachiyomi.network.GET
-import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -21,7 +19,6 @@ import okhttp3.Response
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
-import java.util.concurrent.TimeUnit
 
 class KeiKomik : HttpSource() {
 
@@ -43,15 +40,7 @@ class KeiKomik : HttpSource() {
     }
 
     // Firestore REST API — tidak perlu cloudflareClient
-    // Rate limit 1 req/detik untuk hindari 429 quota Firestore
-    override val client: OkHttpClient = network.client.newBuilder()
-        .rateLimitHost(
-            "firestore.googleapis.com".toHttpUrl(),
-            1,
-            1,
-            TimeUnit.SECONDS,
-        )
-        .build()
+    override val client: OkHttpClient = network.client
 
     // ── URL builder ───────────────────────────────────────────
     private fun fsUrl(path: String): String =
