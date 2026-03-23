@@ -1,308 +1,241 @@
-package eu.kanade.tachiyomi.extension.id.komiku
+package eu.kanade.tachiyomi.extension.id.keikomik
 
-import eu.kanade.tachiyomi.network.GET
-import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
+import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
-import eu.kanade.tachiyomi.source.online.ParsedHttpSource
+import eu.kanade.tachiyomi.source.online.HttpSource
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.jsoup.nodes.Document
-import org.jsoup.nodes.Element
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import java.text.SimpleDateFormat
-import java.util.Calendar
 import java.util.Locale
+import java.util.TimeZone
 
-class Komiku : ParsedHttpSource() {
-    override val name = "Komiku"
+class KeiKomik : HttpSource() {
 
-    override val baseUrl = "https://komiku.org"
-
-    private val baseUrlApi = "https://api.komiku.org"
-
+    override val name = "KeiKomik"
+    override val baseUrl = "https://keikomik.web.id"
     override val lang = "id"
-
     override val supportsLatest = true
 
-    override val client: OkHttpClient = network.cloudflareClient
+    // ── Firestore config ──────────────────────────────────────
+    private val projectId = "komikapp-677a0"
+    private val apiKey = "AIzaSyAtpMBExnqiiZQabVGWuKMWoogtYc3kAAc"
+    private val collection = "KomikApp"
+    private val fsBase = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents"
 
-    // popular
-    override fun popularMangaSelector() = "div.bge"
+    private val json by lazy { Json { ignoreUnknownKeys = true } }
 
-    override fun popularMangaRequest(page: Int): Request {
-        return if (page == 1) {
-            GET("$baseUrlApi/other/hot/?orderby=meta_value_num", headers)
-        } else {
-            GET("$baseUrlApi/other/hot/page/$page/?orderby=meta_value_num", headers)
-        }
+    private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).also {
+        it.timeZone = TimeZone.getTimeZone("UTC")
     }
 
-    private val coverRegex = Regex("""(/Manga-|/Manhua-|/Manhwa-)""")
-    private val coverUploadRegex = Regex("""/uploads/\d\d\d\d/\d\d/""")
+    // Firestore REST API — tidak perlu cloudflareClient
+    override val client: OkHttpClient = network.client
 
-    override fun popularMangaFromElement(element: Element): SManga {
-        val manga = SManga.create()
+    // ── URL builder ───────────────────────────────────────────
+    private fun fsUrl(path: String): String =
+        "$fsBase/$path".toHttpUrl().newBuilder()
+            .addQueryParameter("key", apiKey)
+            .build()
+            .toString()
 
-        manga.title = element.select("h3").text().trim()
-        manga.setUrlWithoutDomain(element.select("a:has(h3)").attr("href"))
+    // ── Konversi Firestore document → SManga ──────────────────
+    private fun docToManga(doc: kotlinx.serialization.json.JsonObject): SManga {
+        val docName = doc["name"]?.jsonPrimitive?.content ?: ""
+        val fields = doc["fields"]?.jsonObject ?: return SManga.create()
 
-        // scraped image doesn't make for a good cover; so try to transform it
-        // make it take bad cover instead of null if it contains upload date as those URLs aren't very useful
-        if (element.select("img").attr("abs:src").contains(coverUploadRegex)) {
-            manga.thumbnail_url = element.select("img").attr("abs:src")
-        } else {
-            manga.thumbnail_url = element.select("img").attr("abs:src").substringBeforeLast("?").replace(coverRegex, "/Komik-")
-        }
+        fun str(key: String) = fields[key]?.jsonObject?.get("stringValue")?.jsonPrimitive?.content ?: ""
 
-        return manga
-    }
-
-    override fun popularMangaNextPageSelector() = "#hxloading + [hx-trigger=revealed]"
-
-    // latest
-    override fun latestUpdatesSelector() = popularMangaSelector()
-
-    override fun latestUpdatesRequest(page: Int): Request {
-        return if (page == 1) {
-            GET("$baseUrlApi/other/hot/?orderby=modified&category_name=", headers)
-        } else {
-            GET("$baseUrlApi/other/hot/page/$page/?orderby=modified&category_name=", headers)
-        }
-    }
-
-    override fun latestUpdatesFromElement(element: Element) = popularMangaFromElement(element)
-
-    override fun latestUpdatesNextPageSelector() = popularMangaNextPageSelector()
-
-    // search
-    override fun searchMangaSelector() = popularMangaSelector()
-
-    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        var url = "$baseUrlApi/page/$page/?post_type=manga".toHttpUrl().newBuilder().addQueryParameter("s", query)
-        (if (filters.isEmpty()) getFilterList() else filters).forEach { filter ->
-            when (filter) {
-                is CategoryNames -> {
-                    val category = filter.values[filter.state]
-                    url.addQueryParameter("category_name", category.key)
-                }
-                is OrderBy -> {
-                    val order = filter.values[filter.state]
-                    url.addQueryParameter("orderby", order.key)
-                }
-                is GenreList1 -> {
-                    val genre = filter.values[filter.state]
-                    url.addQueryParameter("genre", genre.key)
-                }
-                is GenreList2 -> {
-                    val genre = filter.values[filter.state]
-                    url.addQueryParameter("genre2", genre.key)
-                }
-                is StatusList -> {
-                    val status = filter.values[filter.state]
-                    url.addQueryParameter("status", status.key)
-                }
-                is ProjectList -> {
-                    val project = filter.values[filter.state]
-                    if (project.key == "project-filter-on") {
-                        url = ("$baseUrl/pustaka" + if (page > 1) "/page/$page/" else "" + "?tipe=projek").toHttpUrl().newBuilder()
-                    }
-                }
-                else -> {}
+        return SManga.create().apply {
+            url = docName.substringAfterLast("/")
+            title = str("name")
+            thumbnail_url = str("image")
+            author = str("author")
+            genre = fields["genre"]?.jsonObject?.get("arrayValue")?.jsonObject
+                ?.get("values")?.jsonArray
+                ?.joinToString { it.jsonObject["stringValue"]?.jsonPrimitive?.content ?: "" }
+            status = when (str("status")) {
+                "Ongoing" -> SManga.ONGOING
+                "Completed" -> SManga.COMPLETED
+                "Hiatus" -> SManga.ON_HIATUS
+                else -> SManga.UNKNOWN
             }
-        }
-        return GET(url.build(), headers)
-    }
-
-    override fun searchMangaFromElement(element: Element) = popularMangaFromElement(element)
-
-    override fun searchMangaNextPageSelector() = "a.next"
-
-    private class Category(title: String, val key: String) : Filter.TriState(title) {
-        override fun toString(): String {
-            return name
-        }
-    }
-
-    private class Genre(title: String, val key: String) : Filter.TriState(title) {
-        override fun toString(): String {
-            return name
+            description = buildString {
+                val desc = str("description")
+                if (desc.isNotEmpty()) appendLine(desc)
+                val rate = fields["rate"]?.jsonObject?.let {
+                    it["doubleValue"]?.jsonPrimitive?.content
+                        ?: it["integerValue"]?.jsonPrimitive?.content
+                }
+                if (rate != null) appendLine("⭐ $rate")
+                val type = str("type")
+                if (type.isNotEmpty()) appendLine("Type: $type")
+                val rilis = str("rilis")
+                if (rilis.isNotEmpty()) appendLine("Rilis: $rilis")
+            }.trim()
         }
     }
 
-    private class Order(title: String, val key: String) : Filter.TriState(title) {
-        override fun toString(): String {
-            return name
+    // ── runQuery body ─────────────────────────────────────────
+    private fun queryBody(offset: Int) = """
+        {
+          "structuredQuery": {
+            "from": [{"collectionId": "$collection"}],
+            "orderBy": [{"field": {"fieldPath": "UpdateAt"}, "direction": "DESCENDING"}],
+            "limit": $PAGE_SIZE,
+            "offset": $offset
+          }
         }
-    }
+    """.trimIndent()
 
-    private class Status(title: String, val key: String) : Filter.TriState(title) {
-        override fun toString(): String {
-            return name
+    private fun queryRequest(offset: Int): Request =
+        Request.Builder()
+            .url("$fsBase:runQuery?key=$apiKey")
+            .post(queryBody(offset).toRequestBody("application/json".toMediaType()))
+            .build()
+
+    private fun queryParse(response: Response): MangasPage {
+        val arr = json.parseToJsonElement(response.body.string()).jsonArray
+        val mangas = arr.mapNotNull { item ->
+            item.jsonObject["document"]?.jsonObject?.let { docToManga(it) }
+                ?.takeIf { it.title.isNotEmpty() }
         }
+        return MangasPage(mangas, mangas.size == PAGE_SIZE)
     }
 
-    private class CategoryNames(categories: Array<Category>) : Filter.Select<Category>("Category", categories, 0)
-    private class OrderBy(orders: Array<Order>) : Filter.Select<Order>("Order", orders, 0)
-    private class GenreList1(genres: Array<Genre>) : Filter.Select<Genre>("Genre 1", genres, 0)
-    private class GenreList2(genres: Array<Genre>) : Filter.Select<Genre>("Genre 2", genres, 0)
-    private class StatusList(statuses: Array<Status>) : Filter.Select<Status>("Status", statuses, 0)
-    private class ProjectList(project: Array<Status>) : Filter.Select<Status>("Filter Project", project, 0)
+    // ── Popular ───────────────────────────────────────────────
+    override fun popularMangaRequest(page: Int): Request =
+        queryRequest((page - 1) * PAGE_SIZE)
 
-    override fun getFilterList() = FilterList(
-        CategoryNames(categoryNames),
-        OrderBy(orderBy),
-        GenreList1(genreList),
-        GenreList2(genreList),
-        StatusList(statusList),
-        Filter.Separator(),
-        Filter.Header("NOTE: cant be used with other filter!"),
-        Filter.Header("$name Project List page"),
-        ProjectList(projectFilter),
-    )
+    override fun popularMangaParse(response: Response): MangasPage =
+        queryParse(response)
 
-    private val projectFilter = arrayOf(
-        Status("Show all manga", ""),
-        Status("Show only project manga", "project-filter-on"),
-    )
+    // ── Latest Updates ────────────────────────────────────────
+    override fun latestUpdatesRequest(page: Int): Request =
+        queryRequest((page - 1) * PAGE_SIZE)
 
-    private val categoryNames = arrayOf(
-        Category("All", ""),
-        Category("Manga", "manga"),
-        Category("Manhua", "manhua"),
-        Category("Manhwa", "manhwa"),
-    )
+    override fun latestUpdatesParse(response: Response): MangasPage =
+        queryParse(response)
 
-    private val orderBy = arrayOf(
-        Order("Ranking", "meta_value_num"),
-        Order("New Title", "date"),
-        Order("Updates", "modified"),
-        Order("Random", "rand"),
-    )
+    // ── Search ────────────────────────────────────────────────
+    // Firestore tidak support full-text → fetch semua, filter client-side.
+    // Query string dipass lewat custom header.
+    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request =
+        queryRequest(0)
+            .newBuilder()
+            .addHeader("X-Search-Query", query)
+            .build()
 
-    private val genreList = arrayOf(
-        Genre("All", ""),
-        Genre("Action", "action"),
-        Genre("Adventure", "adventure"),
-        Genre("Comedy", "comedy"),
-        Genre("Cooking", "cooking"),
-        Genre("Crime", "crime"),
-        Genre("Demons", "demons"),
-        Genre("Drama", "drama"),
-        Genre("Ecchi", "ecchi"),
-        Genre("Fantasy", "fantasy"),
-        Genre("Game", "game"),
-        Genre("Gender Bender", "gender-bender"),
-        Genre("Harem", "harem"),
-        Genre("Historical", "historical"),
-        Genre("Horror", "horror"),
-        Genre("Isekai", "isekai"),
-        Genre("Josei", "josei"),
-        Genre("Magic", "magic"),
-        Genre("Martial Arts", "martial-arts"),
-        Genre("Mature", "mature"),
-        Genre("Mecha", "mecha"),
-        Genre("Medical", "medical"),
-        Genre("Military", "military"),
-        Genre("Music", "music"),
-        Genre("Mystery", "mystery"),
-        Genre("One Shot", "one-shot"),
-        Genre("Overpower", "overpower"),
-        Genre("Parodi", "parodi"),
-        Genre("Police", "police"),
-        Genre("Psychological", "psychological"),
-        Genre("Reincarnation", "reincarnation"),
-        Genre("Romance", "romance"),
-        Genre("School", "school"),
-        Genre("School life", "school-life"),
-        Genre("Sci-fi", "sci-fi"),
-        Genre("Seinen", "seinen"),
-        Genre("Shotacon", "shotacon"),
-        Genre("Shoujo", "shoujo"),
-        Genre("Shoujo Ai", "shoujo-ai"),
-        Genre("Shounen", "shounen"),
-        Genre("Shounen Ai", "shounen-ai"),
-        Genre("Slice of Life", "slice-of-life"),
-        Genre("Sport", "sport"),
-        Genre("Sports", "sports"),
-        Genre("Super Power", "super-power"),
-        Genre("Supernatural", "supernatural"),
-        Genre("Thriller", "thriller"),
-        Genre("Tragedy", "tragedy"),
-        Genre("Urban", "urban"),
-        Genre("Vampire", "vampire"),
-        Genre("Webtoons", "webtoons"),
-        Genre("Yuri", "yuri"),
-    )
-
-    private val statusList = arrayOf(
-        Status("All", ""),
-        Status("Ongoing", "ongoing"),
-        Status("End", "end"),
-    )
-
-    // manga details
-    override fun mangaDetailsParse(document: Document) = SManga.create().apply {
-        description = document.select("#Sinopsis > p").text().trim()
-        author = document.select("table.inftable td:contains(Komikus)+td").text()
-        genre = document.select("li[itemprop=genre] > a").joinToString { it.text() }
-        status = parseStatus(document.select("table.inftable tr > td:contains(Status) + td").text())
-        thumbnail_url = document.select("div.ims > img").attr("abs:src")
-
-        // add series type(manga/manhwa/manhua/other) thinggy to genre
-        val seriesTypeSelector = "table.inftable tr:contains(Jenis) a, table.inftable tr:has(a[href*=category\\/]) a, a[href*=category\\/]"
-        document.select(seriesTypeSelector).firstOrNull()?.text()?.let {
-            if (it.isEmpty().not() && genre!!.contains(it, true).not()) {
-                genre += if (genre!!.isEmpty()) it else ", $it"
-            }
-        }
-    }
-
-    private fun parseStatus(status: String) = when {
-        status.contains("Ongoing") -> SManga.ONGOING
-        status.contains("Completed") -> SManga.COMPLETED
-        else -> SManga.UNKNOWN
-    }
-
-    // chapters
-    override fun chapterListSelector() = "#Daftar_Chapter tr:has(td.judulseries)"
-
-    override fun chapterFromElement(element: Element) = SChapter.create().apply {
-        setUrlWithoutDomain(element.select("a").attr("href"))
-        name = element.select("a").text()
-
-        val timeStamp = element.select("td.tanggalseries")
-        date_upload = if (timeStamp.text().contains("lalu")) {
-            parseRelativeDate(timeStamp.text().trim())
+    override fun searchMangaParse(response: Response): MangasPage {
+        val query = response.request.header("X-Search-Query") ?: ""
+        val result = queryParse(response)
+        val filtered = if (query.isEmpty()) {
+            result.mangas
         } else {
-            parseDate(timeStamp.last()!!)
+            result.mangas.filter { it.title.contains(query, ignoreCase = true) }
+        }
+        return MangasPage(filtered, false)
+    }
+
+    // ── Manga Detail ──────────────────────────────────────────
+    override fun mangaDetailsRequest(manga: SManga): Request =
+        Request.Builder().url(fsUrl("$collection/${manga.url}")).build()
+
+    override fun mangaDetailsParse(response: Response): SManga =
+        docToManga(json.parseToJsonElement(response.body.string()).jsonObject)
+
+    // ── Chapter List (same endpoint as detail) ────────────────
+    override fun chapterListRequest(manga: SManga): Request =
+        mangaDetailsRequest(manga)
+
+    override fun chapterListParse(response: Response): List<SChapter> {
+        val doc = json.parseToJsonElement(response.body.string()).jsonObject
+        val docId = doc["name"]?.jsonPrimitive?.content?.substringAfterLast("/") ?: return emptyList()
+        val fields = doc["fields"]?.jsonObject ?: return emptyList()
+
+        val komikFields = fields["Komik"]
+            ?.jsonObject?.get("mapValue")
+            ?.jsonObject?.get("fields")
+            ?.jsonObject ?: return emptyList()
+
+        return komikFields.entries
+            .sortedByDescending { it.key.toDoubleOrNull() ?: 0.0 }
+            .mapNotNull { (chId, chData) ->
+                val chFields = chData.jsonObject["mapValue"]
+                    ?.jsonObject?.get("fields")
+                    ?.jsonObject ?: return@mapNotNull null
+
+                val hasImages = chFields["img"]?.jsonObject?.get("arrayValue")
+                    ?.jsonObject?.get("values")?.jsonArray
+                    ?.any { it.jsonObject["stringValue"]?.jsonPrimitive?.content?.isNotEmpty() == true }
+                    ?: false
+
+                SChapter.create().apply {
+                    url = "$docId/$chId"
+                    name = "Chapter $chId"
+                    date_upload = runCatching {
+                        chFields["UpdateAt"]?.jsonObject?.get("timestampValue")
+                            ?.jsonPrimitive?.content
+                            ?.let { dateFormat.parse(it)?.time } ?: 0L
+                    }.getOrDefault(0L)
+                    scanlator = if (!hasImages) "⚠ Belum ada gambar" else null
+                }
+            }
+    }
+
+    // ── Page List ─────────────────────────────────────────────
+    // chapter.url = "{docId}/{chapterId}"
+    // chId dipass lewat custom header karena pageListParse tidak punya akses chapter.url
+    override fun pageListRequest(chapter: SChapter): Request {
+        val (docId, chId) = chapter.url.split("/", limit = 2)
+        return Request.Builder()
+            .url(fsUrl("$collection/$docId"))
+            .addHeader("X-Chapter-Id", chId)
+            .build()
+    }
+
+    override fun pageListParse(response: Response): List<Page> {
+        val chId = response.request.header("X-Chapter-Id") ?: return emptyList()
+        val doc = json.parseToJsonElement(response.body.string()).jsonObject
+        val fields = doc["fields"]?.jsonObject ?: return emptyList()
+
+        val imgArray = fields["Komik"]
+            ?.jsonObject?.get("mapValue")
+            ?.jsonObject?.get("fields")
+            ?.jsonObject?.get(chId)
+            ?.jsonObject?.get("mapValue")
+            ?.jsonObject?.get("fields")
+            ?.jsonObject?.get("img")
+            ?.jsonObject?.get("arrayValue")
+            ?.jsonObject?.get("values")
+            ?.jsonArray ?: return emptyList()
+
+        return imgArray.mapIndexedNotNull { i, v ->
+            val url = v.jsonObject["stringValue"]?.jsonPrimitive?.content
+            if (!url.isNullOrEmpty()) Page(i, imageUrl = url) else null
         }
     }
 
-    private fun parseDate(element: Element): Long = SimpleDateFormat("dd/MM/yyyy", Locale.US).parse(element.text())?.time ?: 0
+    // ── Image ─────────────────────────────────────────────────
+    override fun imageUrlParse(response: Response): String = ""
 
-    // Used Google translate here
-    private fun parseRelativeDate(date: String): Long {
-        val trimmedDate = date.substringBefore(" lalu").removeSuffix("s").split(" ")
+    override fun imageRequest(page: Page): Request =
+        Request.Builder()
+            .url(page.imageUrl!!)
+            .addHeader("Referer", "https://keikomik.web.id/")
+            .build()
 
-        val calendar = Calendar.getInstance()
-        when (trimmedDate[1]) {
-            "jam" -> calendar.apply { add(Calendar.HOUR_OF_DAY, -trimmedDate[0].toInt()) }
-            "menit" -> calendar.apply { add(Calendar.MINUTE, -trimmedDate[0].toInt()) }
-            "detik" -> calendar.apply { add(Calendar.SECOND, 0) }
-        }
-
-        return calendar.timeInMillis
+    companion object {
+        private const val PAGE_SIZE = 50
     }
-
-    // pages
-    override fun pageListParse(document: Document): List<Page> {
-        return document.select("#Baca_Komik img").mapIndexed { i, element ->
-            Page(i, "", element.attr("abs:src"))
-        }
-    }
-
-    override fun imageUrlParse(document: Document): String = throw UnsupportedOperationException()
 }
