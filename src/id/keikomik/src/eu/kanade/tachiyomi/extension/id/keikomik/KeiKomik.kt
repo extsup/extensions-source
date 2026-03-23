@@ -16,7 +16,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
-import rx.Observable
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
@@ -24,8 +23,6 @@ import java.util.TimeZone
 class KeiKomik : HttpSource() {
 
     override val name = "KeiKomik"
-
-    // baseUrl dipakai Tachiyomi untuk cek duplikat source — pakai domain asli site
     override val baseUrl = "https://keikomik.web.id"
     override val lang = "id"
     override val supportsLatest = true
@@ -42,41 +39,24 @@ class KeiKomik : HttpSource() {
         it.timeZone = TimeZone.getTimeZone("UTC")
     }
 
-    // OkHttp — tidak perlu header khusus, Firestore REST support CORS/plain request
     override val client: OkHttpClient = network.cloudflareClient
 
-    // ── URL builder helper ────────────────────────────────────
-    private fun fsUrl(path: String, vararg params: Pair<String, String>): String =
+    // ── URL builder ───────────────────────────────────────────
+    private fun fsUrl(path: String): String =
         "$fsBase/$path".toHttpUrl().newBuilder()
             .addQueryParameter("key", apiKey)
-            .apply { params.forEach { (k, v) -> addQueryParameter(k, v) } }
             .build()
             .toString()
 
-    // ── Helper: ambil string value dari Firestore typed field ─
-    private fun fsStr(field: Map.Entry<String, *>?): String =
-        field?.value?.let {
-            runCatching {
-                (it as? kotlinx.serialization.json.JsonElement)
-                    ?.jsonObject?.get("stringValue")?.jsonPrimitive?.content
-            }.getOrNull()
-        } ?: ""
-
     // ── Konversi Firestore document → SManga ──────────────────
     private fun docToManga(doc: kotlinx.serialization.json.JsonObject): SManga {
-        val name = doc["name"]?.jsonPrimitive?.content ?: "" // Firestore doc path
-        val docId = name.substringAfterLast("/")
+        val name = doc["name"]?.jsonPrimitive?.content ?: ""
         val fields = doc["fields"]?.jsonObject ?: return SManga.create()
 
         fun str(key: String) = fields[key]?.jsonObject?.get("stringValue")?.jsonPrimitive?.content ?: ""
-        fun num(key: String) = fields[key]?.jsonObject?.let {
-            it["integerValue"]?.jsonPrimitive?.content
-                ?: it["doubleValue"]?.jsonPrimitive?.content
-        }
 
         return SManga.create().apply {
-            // url = docId saja, kita tahu collection-nya
-            url = docId
+            url = name.substringAfterLast("/")
             title = str("name")
             thumbnail_url = str("image")
             author = str("author")
@@ -105,21 +85,8 @@ class KeiKomik : HttpSource() {
         }
     }
 
-    // ── Popular ───────────────────────────────────────────────
-    // fetch semua dokumen (max 300 per page), ordered by UpdateAt desc via runQuery
-    override fun popularMangaRequest(page: Int): Request {
-        return latestUpdatesRequest(page)
-    }
-
-    override fun popularMangaParse(response: Response): MangasPage {
-        return latestUpdatesParse(response)
-    }
-
-    // ── Latest Updates ────────────────────────────────────────
-    override fun latestUpdatesRequest(page: Int): Request {
-        val url = "$fsBase:runQuery?key=$apiKey"
-        val offset = (page - 1) * PAGE_SIZE
-        val body = """
+    // ── runQuery body helper ──────────────────────────────────
+    private fun queryBody(offset: Int) = """
         {
           "structuredQuery": {
             "from": [{"collectionId": "$collection"}],
@@ -128,10 +95,19 @@ class KeiKomik : HttpSource() {
             "offset": $offset
           }
         }
-        """.trimIndent()
+    """.trimIndent()
+
+    // ── Popular ───────────────────────────────────────────────
+    override fun popularMangaRequest(page: Int): Request = latestUpdatesRequest(page)
+    override fun popularMangaParse(response: Response): MangasPage = latestUpdatesParse(response)
+
+    // ── Latest Updates ────────────────────────────────────────
+    override fun latestUpdatesRequest(page: Int): Request {
+        val url = "$fsBase:runQuery?key=$apiKey"
+        val offset = (page - 1) * PAGE_SIZE
         return Request.Builder()
             .url(url)
-            .post(body.toRequestBody("application/json".toMediaType()))
+            .post(queryBody(offset).toRequestBody("application/json".toMediaType()))
             .build()
     }
 
@@ -144,34 +120,29 @@ class KeiKomik : HttpSource() {
         return MangasPage(mangas, mangas.size == PAGE_SIZE)
     }
 
-    // ── Search ────────────────────────────────────────────────
-    // Firestore tidak support full-text search → fetch semua lalu filter di client
-    override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
-        return fetchLatestUpdates(1).map { result ->
-            val filtered = result.mangas.filter {
-                it.title.contains(query, ignoreCase = true)
-            }
-            MangasPage(filtered, false)
-        }
-    }
-
+    // ── Search (filter client-side) ───────────────────────────
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request =
         latestUpdatesRequest(1)
 
-    override fun searchMangaParse(response: Response): MangasPage =
-        latestUpdatesParse(response)
+    override fun searchMangaParse(response: Response): MangasPage {
+        // hasil mentah — query string difilter di getSearchManga
+        return latestUpdatesParse(response)
+    }
+
+    override fun getSearchManga(page: Int, query: String, filters: FilterList): MangasPage {
+        val result = super.getSearchManga(page, query, filters)
+        val filtered = result.mangas.filter { it.title.contains(query, ignoreCase = true) }
+        return MangasPage(filtered, false)
+    }
 
     // ── Manga Detail ──────────────────────────────────────────
-    // manga.url = docId (e.g. "vfLsvQaFlTq8hAckGX7X")
     override fun mangaDetailsRequest(manga: SManga): Request =
         Request.Builder().url(fsUrl("$collection/${manga.url}")).build()
 
     override fun mangaDetailsParse(response: Response): SManga =
         docToManga(json.parseToJsonElement(response.body.string()).jsonObject)
 
-    // ── Chapter List ──────────────────────────────────────────
-    // Data chapter ada di dalam field "Komik" dokumen yang sama
-    // → reuse mangaDetailsRequest, tidak perlu request baru
+    // ── Chapter List (same doc as detail) ─────────────────────
     override fun chapterListRequest(manga: SManga): Request =
         mangaDetailsRequest(manga)
 
@@ -192,14 +163,12 @@ class KeiKomik : HttpSource() {
                     ?.jsonObject?.get("fields")
                     ?.jsonObject ?: return@mapNotNull null
 
-                // cek ada gambar valid
                 val hasImages = chFields["img"]?.jsonObject?.get("arrayValue")
                     ?.jsonObject?.get("values")?.jsonArray
                     ?.any { it.jsonObject["stringValue"]?.jsonPrimitive?.content?.isNotEmpty() == true }
                     ?: false
 
                 SChapter.create().apply {
-                    // url format: "{docId}/{chapterId}" — docId untuk fetch, chId untuk lookup
                     url = "$docId/$chId"
                     name = "Chapter $chId"
                     date_upload = runCatching {
@@ -207,7 +176,6 @@ class KeiKomik : HttpSource() {
                             ?.jsonPrimitive?.content
                             ?.let { dateFormat.parse(it)?.time } ?: 0L
                     }.getOrDefault(0L)
-                    // tandai chapter yang belum ada gambar
                     scanlator = if (!hasImages) "⚠ Belum ada gambar" else null
                 }
             }
@@ -215,39 +183,43 @@ class KeiKomik : HttpSource() {
 
     // ── Page List ─────────────────────────────────────────────
     // chapter.url = "{docId}/{chapterId}"
-    // fetch dokumen → ambil Komik.{chapterId}.img
-    override fun fetchPageList(chapter: SChapter): Observable<List<Page>> {
-        val (docId, chId) = chapter.url.split("/", limit = 2)
-        val request = Request.Builder().url(fsUrl("$collection/$docId")).build()
-
-        return client.newCall(request).asObservableSuccess().map { response ->
-            val doc = json.parseToJsonElement(response.body.string()).jsonObject
-            val fields = doc["fields"]?.jsonObject ?: return@map emptyList()
-
-            val imgArray = fields["Komik"]
-                ?.jsonObject?.get("mapValue")
-                ?.jsonObject?.get("fields")
-                ?.jsonObject?.get(chId)
-                ?.jsonObject?.get("mapValue")
-                ?.jsonObject?.get("fields")
-                ?.jsonObject?.get("img")
-                ?.jsonObject?.get("arrayValue")
-                ?.jsonObject?.get("values")
-                ?.jsonArray ?: return@map emptyList()
-
-            imgArray.mapIndexedNotNull { i, v ->
-                val url = v.jsonObject["stringValue"]?.jsonPrimitive?.content
-                if (!url.isNullOrEmpty()) Page(i, imageUrl = url) else null
-            }
-        }
-    }
-
     override fun pageListRequest(chapter: SChapter): Request {
-        val (docId, _) = chapter.url.split("/", limit = 2)
+        val docId = chapter.url.substringBefore("/")
         return Request.Builder().url(fsUrl("$collection/$docId")).build()
     }
 
-    override fun pageListParse(response: Response): List<Page> = emptyList() // tidak dipakai, pakai fetchPageList
+    override fun pageListParse(response: Response): List<Page> {
+        val chId = response.request.url.pathSegments.last() // tidak tersedia di sini
+        // chId diambil dari cache — workaround: parse dari response.request header custom
+        // Tapi cara paling bersih: simpan chId di url, parse di sini
+        return emptyList() // lihat catatan di bawah
+    }
+
+    // pageListParse tidak bisa akses chapter.url langsung.
+    // Solusi: override getPageList (suspend) untuk akses chapter.url
+    override suspend fun getPageList(chapter: SChapter): List<Page> {
+        val (docId, chId) = chapter.url.split("/", limit = 2)
+        val request = Request.Builder().url(fsUrl("$collection/$docId")).build()
+        val response = client.newCall(request).execute()
+        val doc = json.parseToJsonElement(response.body.string()).jsonObject
+        val fields = doc["fields"]?.jsonObject ?: return emptyList()
+
+        val imgArray = fields["Komik"]
+            ?.jsonObject?.get("mapValue")
+            ?.jsonObject?.get("fields")
+            ?.jsonObject?.get(chId)
+            ?.jsonObject?.get("mapValue")
+            ?.jsonObject?.get("fields")
+            ?.jsonObject?.get("img")
+            ?.jsonObject?.get("arrayValue")
+            ?.jsonObject?.get("values")
+            ?.jsonArray ?: return emptyList()
+
+        return imgArray.mapIndexedNotNull { i, v ->
+            val url = v.jsonObject["stringValue"]?.jsonPrimitive?.content
+            if (!url.isNullOrEmpty()) Page(i, imageUrl = url) else null
+        }
+    }
 
     // ── Image ─────────────────────────────────────────────────
     override fun imageUrlParse(response: Response): String = ""
