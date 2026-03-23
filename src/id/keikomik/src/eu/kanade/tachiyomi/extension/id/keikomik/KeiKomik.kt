@@ -1,5 +1,7 @@
 package eu.kanade.tachiyomi.extension.id.keikomik
 
+import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -19,6 +21,7 @@ import okhttp3.Response
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
+import java.util.concurrent.TimeUnit
 
 class KeiKomik : HttpSource() {
 
@@ -39,7 +42,16 @@ class KeiKomik : HttpSource() {
         it.timeZone = TimeZone.getTimeZone("UTC")
     }
 
-    override val client: OkHttpClient = network.cloudflareClient
+    // Firestore REST API — tidak perlu cloudflareClient
+    // Rate limit 1 req/detik untuk hindari 429 quota Firestore
+    override val client: OkHttpClient = network.client.newBuilder()
+        .rateLimitHost(
+            "firestore.googleapis.com".toHttpUrl(),
+            1,
+            1,
+            TimeUnit.SECONDS,
+        )
+        .build()
 
     // ── URL builder ───────────────────────────────────────────
     private fun fsUrl(path: String): String =
@@ -127,8 +139,8 @@ class KeiKomik : HttpSource() {
         queryParse(response)
 
     // ── Search ────────────────────────────────────────────────
-    // Firestore tidak support full-text search → fetch semua, filter di client.
-    // Query string dienkode sebagai custom header agar bisa dibaca di searchMangaParse.
+    // Firestore tidak support full-text → fetch semua, filter client-side.
+    // Query string dipass lewat custom header.
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request =
         queryRequest(0)
             .newBuilder()
@@ -153,7 +165,7 @@ class KeiKomik : HttpSource() {
     override fun mangaDetailsParse(response: Response): SManga =
         docToManga(json.parseToJsonElement(response.body.string()).jsonObject)
 
-    // ── Chapter List (reuse detail response — same endpoint) ──
+    // ── Chapter List (same endpoint as detail) ────────────────
     override fun chapterListRequest(manga: SManga): Request =
         mangaDetailsRequest(manga)
 
@@ -180,7 +192,6 @@ class KeiKomik : HttpSource() {
                     ?: false
 
                 SChapter.create().apply {
-                    // url = "{docId}/{chapterId}" — docId untuk fetch, chId untuk lookup gambar
                     url = "$docId/$chId"
                     name = "Chapter $chId"
                     date_upload = runCatching {
@@ -195,7 +206,7 @@ class KeiKomik : HttpSource() {
 
     // ── Page List ─────────────────────────────────────────────
     // chapter.url = "{docId}/{chapterId}"
-    // chId dienkode sebagai custom header agar bisa dibaca di pageListParse.
+    // chId dipass lewat custom header karena pageListParse tidak punya akses chapter.url
     override fun pageListRequest(chapter: SChapter): Request {
         val (docId, chId) = chapter.url.split("/", limit = 2)
         return Request.Builder()
