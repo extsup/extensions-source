@@ -20,9 +20,7 @@ jobs:
         run: |
           # Daftar folder yang mau di-copy dari src/id/ branch main
           FOLDERS=(
-            "komikucc"
-            "softkomik"
-            "ngomikid"
+            "keikomik"
           )
 
           for folder in "${FOLDERS[@]}"; do
