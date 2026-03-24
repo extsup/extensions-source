@@ -9,7 +9,6 @@ if [ -n "$(git status --porcelain)" ]; then
     git commit -m "Update extensions repo"
     git push
 
-    # Hapus atau ubah baris ini sesuai repo kamu
     # curl https://purge.jsdelivr.net/gh/extsup/extensions@repo/index.min.json
 else
     echo "No changes to commit"
