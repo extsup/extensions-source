@@ -3,7 +3,7 @@ ext {
     extClass = '.NgomikID'
     themePkg = 'mangathemesia'
     baseUrl = 'https://id.ngomik.cloud'
-    overrideVersionCode = 1
+    overrideVersionCode = 999
     isNsfw = false
 }
 
