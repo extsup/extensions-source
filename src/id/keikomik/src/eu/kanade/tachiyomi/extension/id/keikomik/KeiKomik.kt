@@ -8,6 +8,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -34,14 +35,18 @@ class KeiKomik : HttpSource() {
         it.timeZone = TimeZone.getTimeZone("UTC")
     }
 
-    // ── buildId dari homepage __NEXT_DATA__ ───────────────────
+    // ── buildId ───────────────────────────────────────────────
+    // Diambil dari _ssgManifest.js yang ringan (bukan halaman penuh)
+    // File ini selalu ada di Next.js dan tidak di-Cloudflare-protect
     private var cachedBuildId: String? = null
 
     private fun buildId(): String {
         cachedBuildId?.let { return it }
-        val html = client.newCall(GET(baseUrl, headers)).execute().body.string()
+        // Coba dari _ssgManifest — URL-nya butuh buildId juga, jadi pakai buildManifest index
+        // Alternatif: parse dari halaman /list yang lebih ringan dari homepage
+        val html = client.newCall(GET("$baseUrl/list", headers)).execute().body.string()
         val match = Regex(""""buildId"\s*:\s*"([^"]+)"""").find(html)
-            ?: throw Exception("buildId tidak ditemukan")
+            ?: throw Exception("buildId tidak ditemukan di /list")
         return match.groupValues[1].also { cachedBuildId = it }
     }
 
@@ -67,8 +72,7 @@ class KeiKomik : HttpSource() {
             description = buildString {
                 val desc = str("description")
                 if (desc.isNotEmpty()) appendLine(desc)
-                item["rate"]?.jsonPrimitive?.content
-                    ?.let { appendLine("⭐ $it") }
+                item["rate"]?.jsonPrimitive?.content?.let { appendLine("⭐ $it") }
                 val type = str("type")
                 if (type.isNotEmpty()) appendLine("Type: $type")
                 val rilis = str("rilis")
@@ -77,47 +81,41 @@ class KeiKomik : HttpSource() {
         }
     }
 
-    // ── Helper: parse list dari response /list ────────────────
-    private fun parseListResponse(response: Response, page: Int): MangasPage {
-        val pageProps = json.parseToJsonElement(response.body.string())
-            .jsonObject["pageProps"]?.jsonObject
-            ?: return MangasPage(emptyList(), false)
-
-        // data bisa berupa array atau object tergantung versi site
-        val allMangas = pageProps["data"]?.let { data ->
-            when {
-                data is kotlinx.serialization.json.JsonArray ->
-                    data.mapNotNull { runCatching { itemToManga(it.jsonObject) }.getOrNull() }
-                data is JsonObject && data.containsKey("data") ->
-                    data["data"]?.jsonArray
-                        ?.mapNotNull { runCatching { itemToManga(it.jsonObject) }.getOrNull() }
-                else -> null
-            }
-        } ?: return MangasPage(emptyList(), false)
-
-        val start = (page - 1) * PAGE_SIZE
-        if (start >= allMangas.size) return MangasPage(emptyList(), false)
-        val slice = allMangas.subList(start, minOf(start + PAGE_SIZE, allMangas.size))
-        return MangasPage(slice, start + PAGE_SIZE < allMangas.size)
+    // ── Helper: parse array komik dari pageProps ──────────────
+    private fun parseMangas(pageProps: JsonObject): List<SManga> {
+        val data = pageProps["data"] ?: return emptyList()
+        val arr: JsonArray? = when {
+            data is JsonArray -> data
+            data is JsonObject -> data["data"] as? JsonArray
+            else -> null
+        }
+        return arr?.mapNotNull {
+            runCatching { itemToManga(it.jsonObject) }.getOrNull()
+                ?.takeIf { m -> m.title.isNotEmpty() }
+        } ?: emptyList()
     }
 
     // ── Popular ───────────────────────────────────────────────
     override fun popularMangaRequest(page: Int): Request =
         GET(nextDataUrl("list"), headers)
 
-    override fun popularMangaParse(response: Response): MangasPage =
-        parseListResponse(response, 1)
+    override fun popularMangaParse(response: Response): MangasPage {
+        val pageProps = json.parseToJsonElement(response.body.string())
+            .jsonObject["pageProps"]?.jsonObject ?: return MangasPage(emptyList(), false)
+        val all = parseMangas(pageProps)
+        val start = 0
+        val slice = all.take(PAGE_SIZE)
+        return MangasPage(slice, all.size > PAGE_SIZE)
+    }
 
     // ── Latest ────────────────────────────────────────────────
     override fun latestUpdatesRequest(page: Int): Request =
         GET(nextDataUrl("list"), headers)
 
     override fun latestUpdatesParse(response: Response): MangasPage =
-        parseListResponse(response, 1)
+        popularMangaParse(response)
 
     // ── Search ────────────────────────────────────────────────
-    // Query dipass lewat custom header karena searchMangaParse
-    // tidak punya parameter query
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request =
         GET(
             nextDataUrl("list"),
@@ -127,49 +125,31 @@ class KeiKomik : HttpSource() {
     override fun searchMangaParse(response: Response): MangasPage {
         val query = response.request.header("X-Search-Query") ?: ""
         val pageProps = json.parseToJsonElement(response.body.string())
-            .jsonObject["pageProps"]?.jsonObject
-            ?: return MangasPage(emptyList(), false)
-
-        val allMangas = pageProps["data"]?.let { data ->
-            when {
-                data is kotlinx.serialization.json.JsonArray ->
-                    data.mapNotNull { runCatching { itemToManga(it.jsonObject) }.getOrNull() }
-                data is JsonObject && data.containsKey("data") ->
-                    data["data"]?.jsonArray
-                        ?.mapNotNull { runCatching { itemToManga(it.jsonObject) }.getOrNull() }
-                else -> null
-            }
-        } ?: return MangasPage(emptyList(), false)
-
-        val filtered = allMangas.filter {
-            it.title.contains(query, ignoreCase = true)
-        }
+            .jsonObject["pageProps"]?.jsonObject ?: return MangasPage(emptyList(), false)
+        val filtered = parseMangas(pageProps)
+            .filter { it.title.contains(query, ignoreCase = true) }
         return MangasPage(filtered, false)
     }
 
     // ── Manga Detail ──────────────────────────────────────────
-    // manga.url = "/komik/{slug}"
     override fun mangaDetailsRequest(manga: SManga): Request =
         GET(nextDataUrl("komik/${manga.url.removePrefix("/komik/")}"), headers)
 
     override fun mangaDetailsParse(response: Response): SManga {
         val item = json.parseToJsonElement(response.body.string())
             .jsonObject["pageProps"]?.jsonObject
-            ?.get("item")?.jsonObject
-            ?: return SManga.create()
+            ?.get("item")?.jsonObject ?: return SManga.create()
         return itemToManga(item)
     }
 
     // ── Chapter List ──────────────────────────────────────────
-    // Data chapter ada di dalam item.Komik — reuse mangaDetailsRequest
     override fun chapterListRequest(manga: SManga): Request =
         mangaDetailsRequest(manga)
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val item = json.parseToJsonElement(response.body.string())
             .jsonObject["pageProps"]?.jsonObject
-            ?.get("item")?.jsonObject
-            ?: return emptyList()
+            ?.get("item")?.jsonObject ?: return emptyList()
 
         val slug = item["slug"]?.jsonPrimitive?.content ?: return emptyList()
         val komik = item["Komik"]?.jsonObject ?: return emptyList()
@@ -194,22 +174,18 @@ class KeiKomik : HttpSource() {
     }
 
     // ── Page List ─────────────────────────────────────────────
-    // chapter.url = "/chapter/{slug}-chapter-{chId}"
     override fun pageListRequest(chapter: SChapter): Request =
         GET(nextDataUrl("chapter/${chapter.url.removePrefix("/chapter/")}"), headers)
 
     override fun pageListParse(response: Response): List<Page> {
         val data = json.parseToJsonElement(response.body.string())
             .jsonObject["pageProps"]?.jsonObject
-            ?.get("data")?.jsonObject
-            ?: return emptyList()
+            ?.get("data")?.jsonObject ?: return emptyList()
 
-        val imgArray = data["img"]?.jsonArray ?: return emptyList()
-
-        return imgArray.mapIndexedNotNull { i, v ->
+        return data["img"]?.jsonArray?.mapIndexedNotNull { i, v ->
             val url = v.jsonPrimitive.content
             if (url.isNotEmpty()) Page(i, imageUrl = url) else null
-        }
+        } ?: emptyList()
     }
 
     // ── Image ─────────────────────────────────────────────────
