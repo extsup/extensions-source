@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.extension.id.keikomik
 
+import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -7,14 +8,12 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -27,11 +26,7 @@ class KeiKomik : HttpSource() {
     override val lang = "id"
     override val supportsLatest = true
 
-    // ── Firestore config ──────────────────────────────────────
-    private val projectId = "komikapp-677a0"
-    private val apiKey = "AIzaSyAtpMBExnqiiZQabVGWuKMWoogtYc3kAAc"
-    private val collection = "KomikApp"
-    private val fsBase = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents"
+    override val client: OkHttpClient = network.cloudflareClient
 
     private val json by lazy { Json { ignoreUnknownKeys = true } }
 
@@ -39,31 +34,30 @@ class KeiKomik : HttpSource() {
         it.timeZone = TimeZone.getTimeZone("UTC")
     }
 
-    // Firestore REST API — tidak perlu cloudflareClient
-    override val client: OkHttpClient = network.client
+    // ── buildId dari homepage __NEXT_DATA__ ───────────────────
+    private var cachedBuildId: String? = null
 
-    // ── URL builder ───────────────────────────────────────────
-    private fun fsUrl(path: String): String =
-        "$fsBase/$path".toHttpUrl().newBuilder()
-            .addQueryParameter("key", apiKey)
-            .build()
-            .toString()
+    private fun buildId(): String {
+        cachedBuildId?.let { return it }
+        val html = client.newCall(GET(baseUrl, headers)).execute().body.string()
+        val match = Regex(""""buildId"\s*:\s*"([^"]+)"""").find(html)
+            ?: throw Exception("buildId tidak ditemukan")
+        return match.groupValues[1].also { cachedBuildId = it }
+    }
 
-    // ── Konversi Firestore document → SManga ──────────────────
-    private fun docToManga(doc: kotlinx.serialization.json.JsonObject): SManga {
-        val docName = doc["name"]?.jsonPrimitive?.content ?: ""
-        val fields = doc["fields"]?.jsonObject ?: return SManga.create()
+    private fun nextDataUrl(path: String) =
+        "$baseUrl/_next/data/${buildId()}/$path.json"
 
-        fun str(key: String) = fields[key]?.jsonObject?.get("stringValue")?.jsonPrimitive?.content ?: ""
-
+    // ── Helper: JsonObject → SManga ───────────────────────────
+    private fun itemToManga(item: JsonObject): SManga {
+        fun str(key: String) = item[key]?.jsonPrimitive?.content ?: ""
         return SManga.create().apply {
-            url = docName.substringAfterLast("/")
+            url = "/komik/${str("slug")}"
             title = str("name")
             thumbnail_url = str("image")
             author = str("author")
-            genre = fields["genre"]?.jsonObject?.get("arrayValue")?.jsonObject
-                ?.get("values")?.jsonArray
-                ?.joinToString { it.jsonObject["stringValue"]?.jsonPrimitive?.content ?: "" }
+            genre = item["genre"]?.jsonArray
+                ?.joinToString { it.jsonPrimitive.content }
             status = when (str("status")) {
                 "Ongoing" -> SManga.ONGOING
                 "Completed" -> SManga.COMPLETED
@@ -73,11 +67,8 @@ class KeiKomik : HttpSource() {
             description = buildString {
                 val desc = str("description")
                 if (desc.isNotEmpty()) appendLine(desc)
-                val rate = fields["rate"]?.jsonObject?.let {
-                    it["doubleValue"]?.jsonPrimitive?.content
-                        ?: it["integerValue"]?.jsonPrimitive?.content
-                }
-                if (rate != null) appendLine("⭐ $rate")
+                item["rate"]?.jsonPrimitive?.content
+                    ?.let { appendLine("⭐ $it") }
                 val type = str("type")
                 if (type.isNotEmpty()) appendLine("Type: $type")
                 val rilis = str("rilis")
@@ -86,106 +77,115 @@ class KeiKomik : HttpSource() {
         }
     }
 
-    // ── runQuery body ─────────────────────────────────────────
-    private fun queryBody(offset: Int) = """
-        {
-          "structuredQuery": {
-            "from": [{"collectionId": "$collection"}],
-            "orderBy": [{"field": {"fieldPath": "UpdateAt"}, "direction": "DESCENDING"}],
-            "limit": $PAGE_SIZE,
-            "offset": $offset
-          }
-        }
-    """.trimIndent()
+    // ── Helper: parse list dari response /list ────────────────
+    private fun parseListResponse(response: Response, page: Int): MangasPage {
+        val pageProps = json.parseToJsonElement(response.body.string())
+            .jsonObject["pageProps"]?.jsonObject
+            ?: return MangasPage(emptyList(), false)
 
-    private fun queryRequest(offset: Int): Request =
-        Request.Builder()
-            .url("$fsBase:runQuery?key=$apiKey")
-            .post(queryBody(offset).toRequestBody("application/json".toMediaType()))
-            .build()
+        // data bisa berupa array atau object tergantung versi site
+        val allMangas = pageProps["data"]?.let { data ->
+            when {
+                data is kotlinx.serialization.json.JsonArray ->
+                    data.mapNotNull { runCatching { itemToManga(it.jsonObject) }.getOrNull() }
+                data is JsonObject && data.containsKey("data") ->
+                    data["data"]?.jsonArray
+                        ?.mapNotNull { runCatching { itemToManga(it.jsonObject) }.getOrNull() }
+                else -> null
+            }
+        } ?: return MangasPage(emptyList(), false)
 
-    private fun queryParse(response: Response): MangasPage {
-        val arr = json.parseToJsonElement(response.body.string()).jsonArray
-        val mangas = arr.mapNotNull { item ->
-            item.jsonObject["document"]?.jsonObject?.let { docToManga(it) }
-                ?.takeIf { it.title.isNotEmpty() }
-        }
-        return MangasPage(mangas, mangas.size == PAGE_SIZE)
+        val start = (page - 1) * PAGE_SIZE
+        if (start >= allMangas.size) return MangasPage(emptyList(), false)
+        val slice = allMangas.subList(start, minOf(start + PAGE_SIZE, allMangas.size))
+        return MangasPage(slice, start + PAGE_SIZE < allMangas.size)
     }
 
     // ── Popular ───────────────────────────────────────────────
     override fun popularMangaRequest(page: Int): Request =
-        queryRequest((page - 1) * PAGE_SIZE)
+        GET(nextDataUrl("list"), headers)
 
     override fun popularMangaParse(response: Response): MangasPage =
-        queryParse(response)
+        parseListResponse(response, 1)
 
-    // ── Latest Updates ────────────────────────────────────────
+    // ── Latest ────────────────────────────────────────────────
     override fun latestUpdatesRequest(page: Int): Request =
-        queryRequest((page - 1) * PAGE_SIZE)
+        GET(nextDataUrl("list"), headers)
 
     override fun latestUpdatesParse(response: Response): MangasPage =
-        queryParse(response)
+        parseListResponse(response, 1)
 
     // ── Search ────────────────────────────────────────────────
-    // Firestore tidak support full-text → fetch semua, filter client-side.
-    // Query string dipass lewat custom header.
+    // Query dipass lewat custom header karena searchMangaParse
+    // tidak punya parameter query
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request =
-        queryRequest(0)
-            .newBuilder()
-            .addHeader("X-Search-Query", query)
-            .build()
+        GET(
+            nextDataUrl("list"),
+            headers.newBuilder().add("X-Search-Query", query).build(),
+        )
 
     override fun searchMangaParse(response: Response): MangasPage {
         val query = response.request.header("X-Search-Query") ?: ""
-        val result = queryParse(response)
-        val filtered = if (query.isEmpty()) {
-            result.mangas
-        } else {
-            result.mangas.filter { it.title.contains(query, ignoreCase = true) }
+        val pageProps = json.parseToJsonElement(response.body.string())
+            .jsonObject["pageProps"]?.jsonObject
+            ?: return MangasPage(emptyList(), false)
+
+        val allMangas = pageProps["data"]?.let { data ->
+            when {
+                data is kotlinx.serialization.json.JsonArray ->
+                    data.mapNotNull { runCatching { itemToManga(it.jsonObject) }.getOrNull() }
+                data is JsonObject && data.containsKey("data") ->
+                    data["data"]?.jsonArray
+                        ?.mapNotNull { runCatching { itemToManga(it.jsonObject) }.getOrNull() }
+                else -> null
+            }
+        } ?: return MangasPage(emptyList(), false)
+
+        val filtered = allMangas.filter {
+            it.title.contains(query, ignoreCase = true)
         }
         return MangasPage(filtered, false)
     }
 
     // ── Manga Detail ──────────────────────────────────────────
+    // manga.url = "/komik/{slug}"
     override fun mangaDetailsRequest(manga: SManga): Request =
-        Request.Builder().url(fsUrl("$collection/${manga.url}")).build()
+        GET(nextDataUrl("komik/${manga.url.removePrefix("/komik/")}"), headers)
 
-    override fun mangaDetailsParse(response: Response): SManga =
-        docToManga(json.parseToJsonElement(response.body.string()).jsonObject)
+    override fun mangaDetailsParse(response: Response): SManga {
+        val item = json.parseToJsonElement(response.body.string())
+            .jsonObject["pageProps"]?.jsonObject
+            ?.get("item")?.jsonObject
+            ?: return SManga.create()
+        return itemToManga(item)
+    }
 
-    // ── Chapter List (same endpoint as detail) ────────────────
+    // ── Chapter List ──────────────────────────────────────────
+    // Data chapter ada di dalam item.Komik — reuse mangaDetailsRequest
     override fun chapterListRequest(manga: SManga): Request =
         mangaDetailsRequest(manga)
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        val doc = json.parseToJsonElement(response.body.string()).jsonObject
-        val docId = doc["name"]?.jsonPrimitive?.content?.substringAfterLast("/") ?: return emptyList()
-        val fields = doc["fields"]?.jsonObject ?: return emptyList()
+        val item = json.parseToJsonElement(response.body.string())
+            .jsonObject["pageProps"]?.jsonObject
+            ?.get("item")?.jsonObject
+            ?: return emptyList()
 
-        val komikFields = fields["Komik"]
-            ?.jsonObject?.get("mapValue")
-            ?.jsonObject?.get("fields")
-            ?.jsonObject ?: return emptyList()
+        val slug = item["slug"]?.jsonPrimitive?.content ?: return emptyList()
+        val komik = item["Komik"]?.jsonObject ?: return emptyList()
 
-        return komikFields.entries
+        return komik.entries
             .sortedByDescending { it.key.toDoubleOrNull() ?: 0.0 }
             .mapNotNull { (chId, chData) ->
-                val chFields = chData.jsonObject["mapValue"]
-                    ?.jsonObject?.get("fields")
-                    ?.jsonObject ?: return@mapNotNull null
-
-                val hasImages = chFields["img"]?.jsonObject?.get("arrayValue")
-                    ?.jsonObject?.get("values")?.jsonArray
-                    ?.any { it.jsonObject["stringValue"]?.jsonPrimitive?.content?.isNotEmpty() == true }
-                    ?: false
+                val chObj = chData.jsonObject
+                val hasImages = chObj["img"]?.jsonArray
+                    ?.any { it.jsonPrimitive.content.isNotEmpty() } ?: false
 
                 SChapter.create().apply {
-                    url = "$docId/$chId"
+                    url = "/chapter/$slug-chapter-$chId"
                     name = "Chapter $chId"
                     date_upload = runCatching {
-                        chFields["UpdateAt"]?.jsonObject?.get("timestampValue")
-                            ?.jsonPrimitive?.content
+                        chObj["UpdateAt"]?.jsonPrimitive?.content
                             ?.let { dateFormat.parse(it)?.time } ?: 0L
                     }.getOrDefault(0L)
                     scanlator = if (!hasImages) "⚠ Belum ada gambar" else null
@@ -194,35 +194,21 @@ class KeiKomik : HttpSource() {
     }
 
     // ── Page List ─────────────────────────────────────────────
-    // chapter.url = "{docId}/{chapterId}"
-    // chId dipass lewat custom header karena pageListParse tidak punya akses chapter.url
-    override fun pageListRequest(chapter: SChapter): Request {
-        val (docId, chId) = chapter.url.split("/", limit = 2)
-        return Request.Builder()
-            .url(fsUrl("$collection/$docId"))
-            .addHeader("X-Chapter-Id", chId)
-            .build()
-    }
+    // chapter.url = "/chapter/{slug}-chapter-{chId}"
+    override fun pageListRequest(chapter: SChapter): Request =
+        GET(nextDataUrl("chapter/${chapter.url.removePrefix("/chapter/")}"), headers)
 
     override fun pageListParse(response: Response): List<Page> {
-        val chId = response.request.header("X-Chapter-Id") ?: return emptyList()
-        val doc = json.parseToJsonElement(response.body.string()).jsonObject
-        val fields = doc["fields"]?.jsonObject ?: return emptyList()
+        val data = json.parseToJsonElement(response.body.string())
+            .jsonObject["pageProps"]?.jsonObject
+            ?.get("data")?.jsonObject
+            ?: return emptyList()
 
-        val imgArray = fields["Komik"]
-            ?.jsonObject?.get("mapValue")
-            ?.jsonObject?.get("fields")
-            ?.jsonObject?.get(chId)
-            ?.jsonObject?.get("mapValue")
-            ?.jsonObject?.get("fields")
-            ?.jsonObject?.get("img")
-            ?.jsonObject?.get("arrayValue")
-            ?.jsonObject?.get("values")
-            ?.jsonArray ?: return emptyList()
+        val imgArray = data["img"]?.jsonArray ?: return emptyList()
 
         return imgArray.mapIndexedNotNull { i, v ->
-            val url = v.jsonObject["stringValue"]?.jsonPrimitive?.content
-            if (!url.isNullOrEmpty()) Page(i, imageUrl = url) else null
+            val url = v.jsonPrimitive.content
+            if (url.isNotEmpty()) Page(i, imageUrl = url) else null
         }
     }
 
@@ -230,10 +216,10 @@ class KeiKomik : HttpSource() {
     override fun imageUrlParse(response: Response): String = ""
 
     override fun imageRequest(page: Page): Request =
-        Request.Builder()
-            .url(page.imageUrl!!)
-            .addHeader("Referer", "https://keikomik.web.id/")
-            .build()
+        GET(
+            page.imageUrl!!,
+            headers.newBuilder().add("Referer", "$baseUrl/").build(),
+        )
 
     companion object {
         private const val PAGE_SIZE = 50
