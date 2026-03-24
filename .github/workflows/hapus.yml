@@ -23,7 +23,6 @@ jobs:
             "komikucc"
             "komikavnet"
             "ngomikid"
-            "softkomik"
           )
 
           for folder in "${FOLDERS[@]}"; do
