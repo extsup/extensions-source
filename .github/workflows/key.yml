@@ -1,0 +1,39 @@
+name: Generate Keystore
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate Keystore
+        run: |
+          keytool -genkey -v \
+            -keystore keiyoushi.jks \
+            -alias keiyoushi \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass mypassword123 \
+            -keypass mypassword123 \
+            -dname "CN=Keiyoushi, OU=Extensions, O=Keiyoushi, L=ID, S=ID, C=ID"
+
+      - name: Print Fingerprint
+        run: |
+          keytool -list -v -keystore keiyoushi.jks \
+            -alias keiyoushi \
+            -storepass mypassword123 \
+            | grep "SHA256:"
+
+      - name: Encode to Base64
+        run: base64 -w 0 keiyoushi.jks > keystore_base64.txt
+
+      - name: Upload keystore files
+        uses: actions/upload-artifact@v4
+        with:
+          name: keystore
+          path: |
+            keiyoushi.jks
+            keystore_base64.txt
+          retention-days: 1
