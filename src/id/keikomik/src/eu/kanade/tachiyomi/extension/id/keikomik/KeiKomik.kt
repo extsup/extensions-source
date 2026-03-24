@@ -36,18 +36,13 @@ class KeiKomik : HttpSource() {
     }
 
     // ── buildId ───────────────────────────────────────────────
-    // Diambil dari _ssgManifest.js yang ringan (bukan halaman penuh)
-    // File ini selalu ada di Next.js dan tidak di-Cloudflare-protect
-    private var cachedBuildId: String? = null
-
+    // Tidak di-cache karena site sering deploy ulang → buildId berubah
+    // Fetch dari /list setiap kali dibutuhkan (ringan, ~20KB)
     private fun buildId(): String {
-        cachedBuildId?.let { return it }
-        // Coba dari _ssgManifest — URL-nya butuh buildId juga, jadi pakai buildManifest index
-        // Alternatif: parse dari halaman /list yang lebih ringan dari homepage
         val html = client.newCall(GET("$baseUrl/list", headers)).execute().body.string()
         val match = Regex(""""buildId"\s*:\s*"([^"]+)"""").find(html)
             ?: throw Exception("buildId tidak ditemukan di /list")
-        return match.groupValues[1].also { cachedBuildId = it }
+        return match.groupValues[1]
     }
 
     private fun nextDataUrl(path: String) =
