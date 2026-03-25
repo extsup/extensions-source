@@ -53,9 +53,8 @@ class KeiKomik : HttpSource() {
         return SManga.create().apply {
             url = href
             title = a.attr("title")
-                .ifBlank { el.selectFirst("h2, h3, .title, [class*=title]")?.text() }
+                .ifBlank { el.selectFirst("h2, h3, .title, [class*=title]")?.text().orEmpty() }
                 .ifBlank { href.substringAfterLast("/") }
-                ?: href.substringAfterLast("/")
             thumbnail_url = (el.selectFirst("img[src]")?.attr("abs:src")
                 ?: el.selectFirst("img[data-src]")?.attr("abs:data-src"))
                 ?.ifBlank { null }
