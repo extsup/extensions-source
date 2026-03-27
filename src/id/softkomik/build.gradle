@@ -1,7 +1,7 @@
 ext {
     extName = 'Softkomik'
     extClass = '.Softkomik'
-    extVersionCode = 2
+    extVersionCode = 1
     isNsfw = false
 }
 
