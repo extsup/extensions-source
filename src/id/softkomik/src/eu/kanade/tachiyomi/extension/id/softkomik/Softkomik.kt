@@ -152,12 +152,10 @@ class Softkomik :
         val response = chain.proceed(request)
 
         val isChapterApi = request.url.host == "v2.softdevices.my.id"
+        if (!isChapterApi) return response
 
-        // Retry on 401 OR empty body (server returns empty when token IP mismatch)
-        val needsRetry = isChapterApi && (
-            response.code == 401 ||
-                response.peekBody(4).string().isBlank()
-            )
+        val bodyBytes = response.peekBody(Long.MAX_VALUE).bytes()
+        val needsRetry = response.code == 401 || bodyBytes.isEmpty()
 
         if (needsRetry) {
             response.close()
@@ -287,15 +285,13 @@ class Softkomik :
     // ======================== Chapters ========================
     override fun chapterListRequest(manga: SManga): Request {
         val slug = manga.url.removePrefix("/")
-        // Force fresh session — token dikunci per IP, stale session = empty body
-        synchronized(this) { session = fetchSession() }
         return GET("$CHAPTER_URL/komik/$slug/chapter?limit=9999999", chapterHeaders())
     }
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val bodyStr = response.body.string()
         if (bodyStr.isBlank()) {
-            throw Exception("List chapter kosong. Coba refresh.")
+            throw Exception("Server return empty. Code: ${response.code}, URL: ${response.request.url}")
         }
         val dto = bodyStr.parseAs<ChapterListDto>()
         if (dto.chapter.isEmpty()) {
