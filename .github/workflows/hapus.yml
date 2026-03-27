@@ -1,37 +1,14 @@
-name: Copy Selected Extensions to Ori
-
+name: Delete old build attempts
 on:
-  workflow_dispatch:
-
+  workflow_dispatch
 jobs:
-  copy:
+  del_runs:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout branch ori
-        uses: actions/checkout@v4
+      - name: Delete workflow runs
+        uses: Mattraks/delete-workflow-runs@v2
         with:
-          ref: ori
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Fetch branch main
-        run: git fetch origin main
-
-      - name: Copy selected folders from main to ori
-        run: |
-          # Daftar folder yang mau di-copy dari src/id/ branch main
-          FOLDERS=(
-            "keikomik"
-          )
-
-          for folder in "${FOLDERS[@]}"; do
-            echo "Copying src/id/$folder..."
-            git checkout origin/main -- "src/id/$folder"
-          done
-
-      - name: Commit and push to ori
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git diff --staged --quiet || git commit -m "chore: copy selected id extensions from main to ori"
-          git push origin ori
+          token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          retain_days: 0
+          keep_minimum_runs: 0
