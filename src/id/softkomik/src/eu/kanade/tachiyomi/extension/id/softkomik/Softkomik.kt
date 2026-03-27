@@ -125,17 +125,21 @@ class Softkomik :
     // ======================== Session ========================
     @Volatile
     private var session: SessionDto? = null
-        get() {
-            val current = field
-            return if (current == null || System.currentTimeMillis() >= current.ex - 60_000) {
-                synchronized(this) {
-                    val recheck = field
-                    if (recheck == null || System.currentTimeMillis() >= recheck.ex - 60_000) {
-                        fetchSession().also { field = it }
-                    } else recheck
-                }
-            } else current
+
+    private fun getSession(): SessionDto {
+        val current = session
+        if (current != null && System.currentTimeMillis() < current.ex - 60_000) {
+            return current
         }
+        return synchronized(this) {
+            val recheck = session
+            if (recheck != null && System.currentTimeMillis() < recheck.ex - 60_000) {
+                recheck
+            } else {
+                fetchSession().also { session = it }
+            }
+        }
+    }
 
     private fun fetchSession(): SessionDto {
         return sessionClient.newCall(
@@ -147,13 +151,22 @@ class Softkomik :
         val request = chain.request()
         val response = chain.proceed(request)
 
-        if (response.code == 401 && request.url.host == "v2.softdevices.my.id") {
+        val isChapterApi = request.url.host == "v2.softdevices.my.id"
+
+        // Retry on 401 OR empty body (server returns empty when token IP mismatch)
+        val needsRetry = isChapterApi && (
+            response.code == 401 ||
+                response.peekBody(4).string().isBlank()
+            )
+
+        if (needsRetry) {
             response.close()
-            synchronized(this) { session = fetchSession().also { session = it } }
-            val sess = session!!
+            val newSession = synchronized(this) {
+                fetchSession().also { session = it }
+            }
             val newRequest = request.newBuilder()
-                .header("X-Token", sess.token)
-                .header("X-Sign", sess.sign)
+                .header("X-Token", newSession.token)
+                .header("X-Sign", newSession.sign)
                 .build()
             return chain.proceed(newRequest)
         }
@@ -161,7 +174,7 @@ class Softkomik :
     }
 
     private fun chapterHeaders(): Headers {
-        val sess = session ?: fetchSession().also { session = it }
+        val sess = getSession()
         return headersBuilder()
             .add("X-Token", sess.token)
             .add("X-Sign", sess.sign)
@@ -274,11 +287,20 @@ class Softkomik :
     // ======================== Chapters ========================
     override fun chapterListRequest(manga: SManga): Request {
         val slug = manga.url.removePrefix("/")
+        // Force fresh session — token dikunci per IP, stale session = empty body
+        synchronized(this) { session = fetchSession() }
         return GET("$CHAPTER_URL/komik/$slug/chapter?limit=9999999", chapterHeaders())
     }
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        val dto = response.parseAs<ChapterListDto>()
+        val bodyStr = response.body.string()
+        if (bodyStr.isBlank()) {
+            throw Exception("List chapter kosong. Coba refresh.")
+        }
+        val dto = bodyStr.parseAs<ChapterListDto>()
+        if (dto.chapter.isEmpty()) {
+            throw Exception("Tidak ada chapter ditemukan.")
+        }
         val slug = response.request.url.pathSegments[1]
         return dto.chapter.map { chapter ->
             val chapterNum = chapter.chapter.toFloatOrNull() ?: -1f
