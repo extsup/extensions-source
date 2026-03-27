@@ -33,7 +33,17 @@ data class MangaDetailsDto(
 )
 
 @Serializable
-data class ChapterDto(val chapter: String)
+data class ChapterDto(
+    val chapter: String,
+)
+
+@Serializable
+data class ChapterListDto(
+    val title: String = "",
+    val chapter: List<ChapterDto>,
+    val startChapter: List<ChapterDto> = emptyList(),
+    val newChapter: List<ChapterDto> = emptyList(),
+)
 
 @Serializable
 data class NextDataDto(val buildId: String = "")
@@ -52,9 +62,6 @@ data class DetailsDto(val pageProps: DetailsPagePropsDto)
 
 @Serializable
 data class DetailsPagePropsDto(val data: MangaDetailsDto)
-
-@Serializable
-data class ChapterListDto(val chapter: List<ChapterDto>)
 
 @Serializable
 data class ChapterPageDto(val pageProps: ChapterPageDataWrapperDto)
