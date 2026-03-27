@@ -290,16 +290,16 @@ class Softkomik :
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val code = response.code
-        val url = response.request.url
+        val requestUrl = response.request.url.toString()
         val token = response.request.header("X-Token")?.take(20) ?: "null"
         val body = response.body.string()
         if (body.isBlank()) {
-            throw Exception("Empty body! Code=$code URL=$url Token=$token")
+            throw Exception("Empty body! Code=$code URL=$requestUrl Token=$token")
         }
         val dto = body.parseAs<ChapterListDto>()
         if (dto.chapter.isEmpty()) {
             throw Exception("Tidak ada chapter ditemukan.")
-        }
+    }
         val slug = response.request.url.pathSegments[1]
         return dto.chapter.map { chapter ->
             val chapterNum = chapter.chapter.toFloatOrNull() ?: -1f
