@@ -1,6 +1,6 @@
 # Extensions (Fork dari Keiyoushi)
 
-Repo ini adalah fork pribadi dari [keiyoushi/extensions-source](https://github.com/keiyoushi/extensions-source).
+Repo ini adalah fork dari [keiyoushi/extensions-source](https://github.com/keiyoushi/extensions-source).
 
 ## Cara Pakai
 
