@@ -6,7 +6,9 @@ Repo ini adalah fork dari [keiyoushi/extensions-source](https://github.com/keiyo
 
 Tambahkan repo ini ke Mihon/Tachiyomi dengan URL berikut:
 https://raw.githubusercontent.com/extsup/extensions/repo/index.min.json
-Atau kunjungi pengaturan ekstensi di aplikasi dan masukkan URL di atas secara manual.
+
+
+Buka `Jelajahi` → `Ekstensi` → `⋮` → `Repositori ekstensi` lalu tempel link di atas
 
 ## Lisensi
 
