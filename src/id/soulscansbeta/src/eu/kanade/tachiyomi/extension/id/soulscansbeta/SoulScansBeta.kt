@@ -1,13 +1,13 @@
 package eu.kanade.tachiyomi.extension.id.soulscansbeta
 
 import eu.kanade.tachiyomi.network.GET
-import io.github.keiyoushi.gradle.api.annotations.Source
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
+import io.github.keiyoushi.gradle.api.annotations.Source
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.int
