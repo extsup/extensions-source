@@ -21,11 +21,8 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Source
-class SoulScansBeta : HttpSource() {
+abstract class SoulScansBeta : HttpSource() {
 
-    override val name = "Soul Scans Beta"
-    override val baseUrl = "https://v1.soulscans.asia"
-    override val lang = "id"
     override val supportsLatest = true
 
     private val apiUrl = "https://img.soulscans.asia/api"
