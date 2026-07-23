@@ -163,14 +163,12 @@ abstract class MGKomikWeb : ParsedHttpSource() {
 
     // ==================== PAGE LIST ====================
 
-    override fun pageListParse(document: Document): List<Page> {
-        return document.select("img[data-page]").mapIndexed { index, img ->
-            Page(
-                index = index,
-                imageUrl = img.attr("src").takeIf { it.isNotBlank() }
-                    ?: img.attr("data-src"),
-            )
-        }
+    override fun pageListParse(document: Document): List<Page> = document.select("img[data-page]").mapIndexed { index, img ->
+        Page(
+            index = index,
+            imageUrl = img.attr("src").takeIf { it.isNotBlank() }
+                ?: img.attr("data-src"),
+        )
     }
 
     override fun imageUrlParse(document: Document) = ""
