@@ -109,14 +109,14 @@ abstract class SoulScansBeta : HttpSource() {
     override fun pageListRequest(chapter: SChapter): Request = GET("$apiUrl/series/comic/${chapter.url}")
 
     override fun pageListParse(response: Response): List<Page> {
-        val obj = json.parseToJsonElement(response.body.string()).jsonObject
-        val pages = obj["chapter"]!!.jsonObject["pages"]!!.jsonArray
+    val obj = json.parseToJsonElement(response.body.string()).jsonObject
+    val pages = obj["chapter"]!!.jsonObject["pages"]!!.jsonArray
 
-        return pages.mapIndexed { index, page ->
-            val p = page.jsonObject
-            Page(
-                index = index,
-                imageUrl = p["image_url"]!!.jsonPrimitive.content,
+    return pages.mapIndexed { index, page ->
+        val p = page.jsonObject
+        Page(
+            index = index,
+            imageUrl = p["image_url"]!!.jsonPrimitive.content,
             )
         }
     }
