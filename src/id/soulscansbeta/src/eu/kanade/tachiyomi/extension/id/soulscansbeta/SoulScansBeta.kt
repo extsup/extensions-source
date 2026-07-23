@@ -95,7 +95,7 @@ abstract class SoulScansBeta : HttpSource() {
             val u = unit.jsonObject
             SChapter.create().apply {
                 name = u["title"]!!.jsonPrimitive.content
-                url = "$slug/${u["slug"]!!.jsonPrimitive.content}"
+                url = "$slug/chapter/${u["slug"]!!.jsonPrimitive.content}"
                 chapter_number = u["number"]!!.jsonPrimitive.content.toFloatOrNull() ?: -1f
                 date_upload = runCatching {
                     dateFormat.parse(u["created_at"]!!.jsonPrimitive.content)!!.time
@@ -115,8 +115,8 @@ abstract class SoulScansBeta : HttpSource() {
         return pages.mapIndexed { index, page ->
             val p = page.jsonObject
             Page(
-            index = index,
-            imageUrl = p["image_url"]!!.jsonPrimitive.content,
+                index = index,
+                imageUrl = p["image_url"]!!.jsonPrimitive.content,
             )
         }
     }
