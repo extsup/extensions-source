@@ -9,6 +9,7 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import keiyoushi.annotation.Source
 import keiyoushi.source.KeiSource
+import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
@@ -83,10 +84,8 @@ abstract class MGKomikWebBeta : KeiSource() {
     ): SMangaUpdate {
         val response = client.newCall(GET(baseUrl + manga.url, headers)).execute()
         val document = Jsoup.parse(response.body.string())
-
         val updatedManga = if (fetchDetails) parseMangaDetails(document) else manga
         val updatedChapters = if (fetchChapters) parseChapterList(document) else chapters
-
         return SMangaUpdate(manga = updatedManga, chapters = updatedChapters)
     }
 
@@ -168,6 +167,4 @@ abstract class MGKomikWebBeta : KeiSource() {
             )
         }
     }
-
-    override fun getFilterList() = FilterList()
 }
