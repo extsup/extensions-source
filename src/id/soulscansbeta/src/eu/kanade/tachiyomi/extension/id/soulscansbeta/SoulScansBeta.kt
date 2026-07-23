@@ -140,4 +140,3 @@ abstract class SoulScansBeta : HttpSource() {
 
     override fun getFilterList() = FilterList()
 }
-
