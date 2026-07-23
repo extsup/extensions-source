@@ -15,3 +15,4 @@ keiyoushi {
         lang = "id"
     }
 }
+// rebuild
