@@ -25,6 +25,7 @@ abstract class SoulScansBeta : HttpSource() {
 
     override val supportsLatest = true
 
+    override val baseUrl = "https://soulscans.asia"
     private val apiUrl = "https://img.soulscans.asia/api"
 
     private val json: Json by injectLazy()
@@ -82,6 +83,8 @@ abstract class SoulScansBeta : HttpSource() {
         }
     }
 
+    override fun getMangaUrl(manga: SManga): String = "$baseUrl/comic/${manga.url}"
+
     // ==================== CHAPTER LIST ====================
 
     override fun chapterListRequest(manga: SManga): Request = GET("$apiUrl/series/comic/${manga.url}")
@@ -103,6 +106,8 @@ abstract class SoulScansBeta : HttpSource() {
             }
         }
     }
+
+    override fun getChapterUrl(chapter: SChapter): String = "$baseUrl/comic/${chapter.url}"
 
     // ==================== PAGES ====================
 
