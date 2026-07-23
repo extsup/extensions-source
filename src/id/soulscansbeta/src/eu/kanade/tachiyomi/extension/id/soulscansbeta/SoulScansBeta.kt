@@ -25,7 +25,6 @@ abstract class SoulScansBeta : HttpSource() {
 
     override val supportsLatest = true
 
-    override val baseUrl = "https://soulscans.asia"
     private val apiUrl = "https://img.soulscans.asia/api"
 
     private val json: Json by injectLazy()
