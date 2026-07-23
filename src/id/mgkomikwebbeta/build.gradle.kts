@@ -15,4 +15,3 @@ keiyoushi {
         lang = "id"
     }
 }
-
