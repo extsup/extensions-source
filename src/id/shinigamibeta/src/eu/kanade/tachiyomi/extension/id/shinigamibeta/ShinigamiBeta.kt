@@ -96,7 +96,7 @@ abstract class ShinigamiBeta :
             val obj = el.jsonObject
             SManga.create().apply {
                 title = obj["manga_id"]!!.jsonPrimitive.content
-                thumbnail_url = obj["thumbnail"]?.jsonPrimitive?.content
+                thumbnail_url = obj["cover_image_url"]?.jsonPrimitive?.content
                 url = obj["manga_id"]!!.jsonPrimitive.content
             }
         }
@@ -154,6 +154,7 @@ abstract class ShinigamiBeta :
             .orEmpty()
 
         return SManga.create().apply {
+            title = dto["title"]?.jsonPrimitive?.content.orEmpty()
             author = taxNames("Author")
             artist = taxNames("Artist")
             status = when (dto["status"]?.jsonPrimitive?.intOrNull) {
@@ -179,10 +180,10 @@ abstract class ShinigamiBeta :
         return data.map { el ->
             val obj = el.jsonObject
             SChapter.create().apply {
-                date_upload = dateFormat.tryParse(obj["published_at"]?.jsonPrimitive?.content)
-                val num = obj["name"]?.jsonPrimitive?.doubleOrNull
+                date_upload = dateFormat.tryParse(obj["release_date"]?.jsonPrimitive?.content)
+                val num = obj["chapter_number"]?.jsonPrimitive?.doubleOrNull
                     ?.toString()?.replace(".0", "") ?: ""
-                val title = obj["title"]?.jsonPrimitive?.content
+                val title = obj["chapter_title"]?.jsonPrimitive?.content
                 name = "Chapter $num ${title ?: ""}".trim()
                 url = obj["chapter_id"]!!.jsonPrimitive.content
             }
