@@ -163,7 +163,16 @@ abstract class ShinigamiBeta :
                 3 -> SManga.ON_HIATUS
                 else -> SManga.UNKNOWN
             }
-            description = dto["description"]?.jsonPrimitive?.content
+            val altTitle = dto["alternative_title"]?.jsonPrimitive?.content
+            description = buildString {
+                if (!altTitle.isNullOrBlank()) append("Alt title: $altTitle\n\n")
+                append(
+                    dto["description"]?.jsonPrimitive?.content
+                        ?.replace("&#x20;", " ")
+                        ?.trim()
+                        .orEmpty()
+                )
+            }
             val genres = taxNames("Genre")
             val type = taxNames("Format")
             genre = listOf(genres, type).filter { it.isNotBlank() }.joinToString()
