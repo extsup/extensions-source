@@ -170,7 +170,7 @@ abstract class ShinigamiBeta :
                     dto["description"]?.jsonPrimitive?.content
                         ?.replace("&#x20;", " ")
                         ?.trim()
-                        .orEmpty()
+                        .orEmpty(),
                 )
             }
             val genres = taxNames("Genre")
