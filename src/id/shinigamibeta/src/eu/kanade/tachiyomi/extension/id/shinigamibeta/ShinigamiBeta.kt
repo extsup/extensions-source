@@ -32,7 +32,9 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Source
-class ShinigamiBeta : HttpSource(), ConfigurableSource {
+class ShinigamiBeta :
+    HttpSource(),
+    ConfigurableSource {
 
     private val apiUrl = "https://api.shngm.io"
 
@@ -169,8 +171,7 @@ class ShinigamiBeta : HttpSource(), ConfigurableSource {
 
     // ============================== Chapters ==============================
 
-    override fun chapterListRequest(manga: SManga): Request =
-        GET("$apiUrl/v1/chapter/${manga.url}/list?page_size=3000", apiHeaders)
+    override fun chapterListRequest(manga: SManga): Request = GET("$apiUrl/v1/chapter/${manga.url}/list?page_size=3000", apiHeaders)
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val root = response.parseAs<JsonObject>()
