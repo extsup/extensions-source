@@ -34,8 +34,7 @@ import java.util.Locale
 @Source
 class ShinigamiBeta(
     override val lang: String = "id",
-) :
-    HttpSource(),
+) : HttpSource(),
     ConfigurableSource {
 
     private val apiUrl = "https://api.shngm.io"
