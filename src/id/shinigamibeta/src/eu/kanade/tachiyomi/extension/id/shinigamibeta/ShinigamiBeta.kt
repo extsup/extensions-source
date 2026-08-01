@@ -32,10 +32,7 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Source
-class ShinigamiBeta(
-    override val lang: String = "id",
-) : HttpSource(),
-    ConfigurableSource {
+abstract class ShinigamiBeta : HttpSource(), ConfigurableSource {
 
     private val apiUrl = "https://api.shngm.io"
 
