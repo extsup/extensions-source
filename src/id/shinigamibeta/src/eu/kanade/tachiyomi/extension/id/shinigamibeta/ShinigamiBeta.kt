@@ -165,7 +165,6 @@ abstract class ShinigamiBeta :
             }
             val altTitle = dto["alternative_title"]?.jsonPrimitive?.content
             description = buildString {
-                if (!altTitle.isNullOrBlank()) append("Alt title: $altTitle\n\n")
                 append(
                     dto["description"]?.jsonPrimitive?.content
                         ?.replace("&#x20;", "")
@@ -175,6 +174,7 @@ abstract class ShinigamiBeta :
                         ?.trim()
                         .orEmpty(),
                 )
+                if (!altTitle.isNullOrBlank()) append("\n\nAlt title: $altTitle")
             }
             val genres = taxNames("Genre")
             val type = taxNames("Format")
