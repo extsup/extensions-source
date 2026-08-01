@@ -15,3 +15,4 @@ keiyoushi {
         baseUrl = "https://11.shinigami.asia"
     }
 }
+
