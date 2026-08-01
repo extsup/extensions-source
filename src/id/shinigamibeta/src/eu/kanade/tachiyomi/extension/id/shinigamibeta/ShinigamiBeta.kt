@@ -169,8 +169,8 @@ abstract class ShinigamiBeta :
                 append(
                     dto["description"]?.jsonPrimitive?.content
                         ?.replace("&#x20;", "")
-                        ?.replace(Regex("<[^>]+>"), "")
                         ?.replace(Regex("""[\\*]+"""), "")
+                        ?.replace(Regex("<([^>]+)>"), "$1")
                         ?.replace(Regex("""\n{2,}"""), "\n\n")
                         ?.trim()
                         .orEmpty(),
