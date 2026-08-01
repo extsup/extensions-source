@@ -38,11 +38,12 @@ jobs:
 
       - name: Print signing key fingerprint
         run: |
+          echo "=== SHA256 Fingerprint (untuk signingKey di index.json) ==="
           keytool -list -v \
             -keystore keystore.jks \
             -alias ${{ github.event.inputs.alias }} \
             -storepass ${{ github.event.inputs.keystore_password }} \
-            | grep "SHA-256"
+            | grep "SHA256"
 
       - name: Print base64 keystore
         run: |
