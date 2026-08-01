@@ -95,7 +95,7 @@ abstract class ShinigamiBeta :
         val mangas = data.map { el ->
             val obj = el.jsonObject
             SManga.create().apply {
-                title = obj["manga_id"]!!.jsonPrimitive.content
+                title = obj["title"]?.jsonPrimitive?.content ?: obj["manga_id"]!!.jsonPrimitive.content
                 thumbnail_url = obj["cover_image_url"]?.jsonPrimitive?.content
                 url = obj["manga_id"]!!.jsonPrimitive.content
             }
@@ -205,13 +205,16 @@ abstract class ShinigamiBeta :
         val baseImgUrl = data["base_url"]!!.jsonPrimitive.content
         val chapter = data["chapter"]!!.jsonObject
         val path = chapter["path"]!!.jsonPrimitive.content
-        val pages = chapter["pages"]!!.jsonArray
+        val pages = chapter["data"]!!.jsonArray
 
-        return pages.mapIndexed { index, el ->
-            val originalUrl = "$baseImgUrl$path${el.jsonPrimitive.content}"
-            val finalUrl = resizeUrl.takeIf { it.isNotBlank() }?.let { "$it$originalUrl" } ?: originalUrl
-            Page(index = index, imageUrl = finalUrl)
-        }
+        return pages
+            .map { it.jsonPrimitive.content }
+            .filter { !it.startsWith("9") }
+            .mapIndexed { index, imageName ->
+                val originalUrl = "$baseImgUrl$path$imageName"
+                val finalUrl = resizeUrl.takeIf { it.isNotBlank() }?.let { "$it$originalUrl" } ?: originalUrl
+                Page(index = index, imageUrl = finalUrl)
+            }
     }
 
     override fun imageUrlParse(response: Response): String = ""
