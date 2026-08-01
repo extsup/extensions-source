@@ -168,10 +168,10 @@ abstract class ShinigamiBeta :
                 if (!altTitle.isNullOrBlank()) append("Alt title: $altTitle\n\n")
                 append(
                     dto["description"]?.jsonPrimitive?.content
-                        ?.replace(Regex("&#x20;\\s*"), "")
+                        ?.replace("&#x20;", "")
                         ?.replace(Regex("<[^>]+>"), "")
-                        ?.replace(Regex("\\*+"), "")
-                        ?.replace(Regex("\\n{2,}"), "\\n\\n")
+                        ?.replace(Regex("""\*+"""), "")
+                        ?.replace(Regex("""\n{2,}"""), "\n\n")
                         ?.trim()
                         .orEmpty(),
                 )
