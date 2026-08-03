@@ -279,8 +279,14 @@ abstract class ShinigamiBeta :
 
     companion object {
         private val BLACKLISTED_GENRES = setOf(
-            "josei", "boys-love", "bl", "yaoi", "yuri",
-            "girls-love", "shounen-ai", "shoujo-ai"
+            "josei",
+            "boys-love",
+            "bl",
+            "yaoi",
+            "yuri",
+            "girls-love",
+            "shounen-ai",
+            "shoujo-ai",
         )
 
         private const val PREF_DOMAIN_KEY = "pref_domain"
