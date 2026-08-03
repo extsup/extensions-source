@@ -92,8 +92,13 @@ abstract class ShinigamiBeta :
         val root = response.parseAs<JsonObject>()
         val data = root["data"]!!.jsonArray
         val meta = root["meta"]!!.jsonObject
-        val mangas = data.map { el ->
+        val mangas = data.mapNotNull { el ->
             val obj = el.jsonObject
+            val genres = obj["taxonomy"]?.jsonObject
+                ?.get("Genre")?.jsonArray
+                ?.map { it.jsonObject["slug"]!!.jsonPrimitive.content.lowercase() }
+                ?: emptyList()
+            if (genres.any { it in BLACKLISTED_GENRES }) return@mapNotNull null
             SManga.create().apply {
                 title = obj["title"]?.jsonPrimitive?.content ?: obj["manga_id"]!!.jsonPrimitive.content
                 thumbnail_url = obj["cover_image_url"]?.jsonPrimitive?.content
@@ -273,6 +278,11 @@ abstract class ShinigamiBeta :
     // ============================== Companion =============================
 
     companion object {
+        private val BLACKLISTED_GENRES = setOf(
+            "josei", "boys-love", "bl", "yaoi", "yuri",
+            "girls-love", "shounen-ai", "shoujo-ai"
+        )
+
         private const val PREF_DOMAIN_KEY = "pref_domain"
         private const val PREF_DOMAIN_DEFAULT = "https://09.shinigami.asia"
         private const val PREF_RESIZE_URL_KEY = "pref_resize_url"
