@@ -279,7 +279,9 @@ abstract class ShinigamiBeta :
 
     companion object {
         private val BLACKLISTED_GENRES = setOf(
-            "josei",
+            "josei-genre",
+            "smut",
+            "gender-bender",
             "boys-love",
             "bl",
             "yaoi",
