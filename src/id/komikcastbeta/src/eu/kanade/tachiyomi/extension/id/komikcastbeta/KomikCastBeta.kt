@@ -101,7 +101,7 @@ abstract class KomikCastBeta : HttpSource() {
             thumbnail_url = data["coverImage"]?.jsonPrimitive?.content
             val synopsis = data["synopsis"]?.jsonPrimitive?.content.orEmpty()
             val altTitle = data["nativeTitle"]?.jsonPrimitive?.content
-            description = if (!altTitle.isNullOrBlank()) "$synopsis\n\n**Alt Title:** $altTitle" else synopsis
+            description = if (!altTitle.isNullOrBlank()) "$synopsis\n\nAlt Title: $altTitle" else synopsis
             status = when (data["status"]?.jsonPrimitive?.content?.lowercase()) {
                 "ongoing" -> SManga.ONGOING
                 "completed" -> SManga.COMPLETED
