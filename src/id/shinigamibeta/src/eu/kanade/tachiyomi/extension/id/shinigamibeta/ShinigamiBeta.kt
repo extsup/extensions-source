@@ -221,7 +221,10 @@ abstract class ShinigamiBeta :
 
         return pages
             .map { it.jsonPrimitive.content }
-            .filter { !it.startsWith("99") }
+            .filter { imageName ->
+                val prefix = imageName.split("-").firstOrNull()?.toIntOrNull() ?: 0
+                prefix !in 90..999
+            }
             .mapIndexed { index, imageName ->
                 val originalUrl = "$baseImgUrl$path$imageName"
                 val finalUrl = resizeUrl.takeIf { it.isNotBlank() }?.let { "$it$originalUrl" } ?: originalUrl

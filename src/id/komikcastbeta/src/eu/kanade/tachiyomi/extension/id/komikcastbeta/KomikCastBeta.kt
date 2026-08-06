@@ -29,7 +29,9 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Source
-abstract class KomikCastBeta : HttpSource(), ConfigurableSource {
+abstract class KomikCastBeta :
+    HttpSource(),
+    ConfigurableSource {
 
     private val apiUrl = "https://be.komikcast.cc"
     override val supportsLatest = true
