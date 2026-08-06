@@ -99,8 +99,9 @@ abstract class KomikCastBeta : HttpSource() {
         return SManga.create().apply {
             title = data["title"]?.jsonPrimitive?.content.orEmpty()
             thumbnail_url = data["coverImage"]?.jsonPrimitive?.content
-            description = data["synopsis"]?.jsonPrimitive?.content.orEmpty()
-            author = data["author"]?.jsonPrimitive?.content.orEmpty()
+            val synopsis = data["synopsis"]?.jsonPrimitive?.content.orEmpty()
+            val altTitle = data["nativeTitle"]?.jsonPrimitive?.content
+            description = if (!altTitle.isNullOrBlank()) "$synopsis\n\nAlt title: $altTitle" else synopsis
             status = when (data["status"]?.jsonPrimitive?.content?.lowercase()) {
                 "ongoing" -> SManga.ONGOING
                 "completed" -> SManga.COMPLETED
