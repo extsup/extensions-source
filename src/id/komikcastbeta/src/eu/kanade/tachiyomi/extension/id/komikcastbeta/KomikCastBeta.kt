@@ -1,6 +1,9 @@
 package eu.kanade.tachiyomi.extension.id.komikcastbeta
 
+import androidx.preference.EditTextPreference
+import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -9,6 +12,7 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import keiyoushi.annotation.Source
 import keiyoushi.network.rateLimit
+import keiyoushi.utils.getPreferencesLazy
 import keiyoushi.utils.parseAs
 import keiyoushi.utils.tryParse
 import kotlinx.serialization.json.JsonObject
@@ -25,10 +29,15 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Source
-abstract class KomikCastBeta : HttpSource() {
+abstract class KomikCastBeta : HttpSource(), ConfigurableSource {
 
     private val apiUrl = "https://be.komikcast.cc"
     override val supportsLatest = true
+
+    private val preferences by getPreferencesLazy()
+
+    override val baseUrl: String
+        get() = preferences.getString(PREF_DOMAIN_KEY, "https://komikcast.cz")!!
 
     override val client: OkHttpClient = network.client.newBuilder()
         .rateLimit(3)
@@ -164,6 +173,23 @@ abstract class KomikCastBeta : HttpSource() {
         return GET(page.imageUrl!!, newHeaders)
     }
 
+    // ============================== Preferences ===========================
+
+    override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        EditTextPreference(screen.context).apply {
+            key = PREF_DOMAIN_KEY
+            title = "Domain URL"
+            summary = "Sekarang: $baseUrl"
+            setDefaultValue("https://v3.komikcast.fit")
+            dialogTitle = "Masukkan domain"
+            dialogMessage = "Masukkan Domain Baru"
+            setOnPreferenceChangeListener { _, newValue ->
+                preferences.edit().putString(PREF_DOMAIN_KEY, (newValue as String).trimEnd('/')).apply()
+                true
+            }
+        }.also(screen::addPreference)
+    }
+
     // ============================== Helper ================================
 
     private fun parseSeriesListResponse(response: Response): MangasPage {
@@ -184,6 +210,7 @@ abstract class KomikCastBeta : HttpSource() {
     }
 
     companion object {
+        private const val PREF_DOMAIN_KEY = "pref_domain"
         val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.ENGLISH)
     }
 }
