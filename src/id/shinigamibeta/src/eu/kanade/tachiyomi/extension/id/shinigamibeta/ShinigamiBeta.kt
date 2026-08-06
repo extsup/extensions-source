@@ -226,7 +226,7 @@ abstract class ShinigamiBeta :
 
         return pages
             .map { it.jsonPrimitive.content }
-            .filter { !it.startsWith("9") }
+            .filter { !it.startsWith("99") }
             .mapIndexed { index, imageName ->
                 val originalUrl = "$baseImgUrl$path$imageName"
                 val finalUrl = resizeUrl.takeIf { it.isNotBlank() }?.let { "$it$originalUrl" } ?: originalUrl
