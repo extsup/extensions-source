@@ -124,10 +124,9 @@ abstract class KomikCastBeta : HttpSource() {
         return data.map { el ->
             val obj = el.jsonObject
             val index = obj["data"]!!.jsonObject["index"]?.jsonPrimitive?.intOrNull ?: 0
-            val title = obj["data"]!!.jsonObject["title"]?.jsonPrimitive?.content ?: ""
             SChapter.create().apply {
                 url = "$slug/chapters/$index"
-                name = "Chapter $index${if (title.isNotBlank()) " $title" else ""}".trim()
+                name = "Chapter $index"
                 date_upload = dateFormat.tryParse(obj["createdAt"]?.jsonPrimitive?.content)
             }
         }
