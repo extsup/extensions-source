@@ -11,7 +11,7 @@ keiyoushi {
     libVersion = "1.4"
 
     source {
-        baseUrl = "https://v1.soulscans.asia"
+        baseUrl = "https://v1.soulscans.org"
         lang = "id"
     }
 }
