@@ -14,7 +14,16 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 @Source
-class KomikavBeta : KeiSource() {
+class KomikavBeta : KeiSource("id", "komikavbeta") {
+
+    // Base URL situs
+    override val baseUrl = "https://komikav.net"
+
+    // Nama ekstensi
+    override val name = "Komikav Beta"
+
+    // Versi library (1.4)
+    override val libVersion = "1.4"
 
     // ---------- Daftar Manga Populer ----------
     override suspend fun getPopularManga(page: Int): MangasPage {
