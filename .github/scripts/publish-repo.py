@@ -192,6 +192,18 @@ legacy_json_index = [
 with REPO_DIR.joinpath("index.min.json").open("w", encoding="utf-8") as f:
     json.dump(legacy_json_index, f, ensure_ascii=False, separators=(",", ":"))
 
+# Generate repo.json
+repo_json = {
+    "meta": {
+        "name": "extsup Extension Repo",
+        "shortName": "EXT",
+        "website": "https://github.com/extsup/extensions",
+        "signingKeyFingerprint": "41c480606c843c093028927219d54afbb746e87790c7a53bcab8b183e21c5e33"
+    }
+}
+with REPO_DIR.joinpath("repo.json").open("w", encoding="utf-8") as f:
+    json.dump(repo_json, f, indent=2)
+
 with REPO_DIR.joinpath("index.html").open("w", encoding="utf-8") as f:
     f.write(
         '<!DOCTYPE html>\n<html>\n<head>\n<meta charset="UTF-8">\n<title>apks</title>\n</head>\n<body>\n<pre>\n'
