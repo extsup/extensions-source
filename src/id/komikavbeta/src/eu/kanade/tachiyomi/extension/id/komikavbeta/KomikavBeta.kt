@@ -14,7 +14,7 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 @Source
-class KomikavBeta : KeiSource() {
+class KomikavBeta : KeiSource("id", "komikavbeta") {
 
     // Base URL situs
     override val baseUrl = "https://komikav.net"
@@ -93,7 +93,7 @@ class KomikavBeta : KeiSource() {
         // Asumsikan ada div berisi link chapter
         val chapterElements = doc.select("div.chapter-list a, div.list-chapter a, div.grid.gap-2 a")
         return chapterElements.mapNotNull { element ->
-            val link = element.attr("href")
+            val link = element.absUrl("href")
             val name = element.text().trim()
             if (link.isNotBlank() && name.isNotBlank()) {
                 SChapter().apply {
@@ -135,7 +135,7 @@ class KomikavBeta : KeiSource() {
 
         return SManga().apply {
             title = titleElement?.text()?.trim() ?: "Unknown"
-            url = linkElement?.attr("href") ?: ""
+            url = linkElement?.absUrl("href") ?: ""
             thumbnail_url = coverElement?.attr("data-src")?.ifEmpty { coverElement.attr("src") } ?: ""
             // Genre label bisa diambil dari div absolute
             val genreLabel = element.select("div.z-100.absolute.left-0.top-0").text()
