@@ -263,7 +263,7 @@ abstract class ShinigamiBeta :
         EditTextPreference(screen.context).apply {
             key = PREF_RESIZE_URL_KEY
             title = "URL Resize"
-            summary = "Prefix URL resize. Kosongkan untuk nonaktifkan."
+            summary = "URL Resize. Kosongkan untuk nonaktifkan."
             dialogTitle = "Masukkan prefix URL resize"
             dialogMessage = "Contoh: https://resize.example.com?url="
             setOnPreferenceChangeListener { _, newValue ->
