@@ -12,8 +12,6 @@ import okhttp3.Request
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 @Source
 class KomikavBeta : KeiSource() {
@@ -108,7 +106,9 @@ class KomikavBeta : KeiSource() {
                     val dateText = element.select("span.float-right").text()
                     date_upload = parseDate(dateText) ?: 0L
                 }
-            } else null
+            } else {
+                null
+            }
         }.reversed() // biasanya chapter terbaru di atas, tapi kita bisa urutkan
     }
 
