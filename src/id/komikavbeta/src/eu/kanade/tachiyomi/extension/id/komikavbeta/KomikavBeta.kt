@@ -18,8 +18,7 @@ class KomikavBeta : HttpSource() {
 
     override val supportsLatest = true
 
-    override fun popularMangaRequest(page: Int): Request =
-        Request.Builder().url("$baseUrl/popular/?page=$page").build()
+    override fun popularMangaRequest(page: Int): Request = Request.Builder().url("$baseUrl/popular/?page=$page").build()
 
     override fun popularMangaParse(response: Response): MangasPage {
         val doc = Jsoup.parse(response.body.string(), baseUrl)
@@ -27,11 +26,9 @@ class KomikavBeta : HttpSource() {
         return MangasPage(mangas, doc.select("a.next").isNotEmpty())
     }
 
-    override fun latestUpdatesRequest(page: Int): Request =
-        Request.Builder().url("$baseUrl/?page=$page").build()
+    override fun latestUpdatesRequest(page: Int): Request = Request.Builder().url("$baseUrl/?page=$page").build()
 
-    override fun latestUpdatesParse(response: Response): MangasPage =
-        popularMangaParse(response)
+    override fun latestUpdatesParse(response: Response): MangasPage = popularMangaParse(response)
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         val url = "$baseUrl/search".toHttpUrl().newBuilder()
@@ -41,8 +38,7 @@ class KomikavBeta : HttpSource() {
         return Request.Builder().url(url).build()
     }
 
-    override fun searchMangaParse(response: Response): MangasPage =
-        popularMangaParse(response)
+    override fun searchMangaParse(response: Response): MangasPage = popularMangaParse(response)
 
     override fun mangaDetailsParse(response: Response): SManga {
         val doc = Jsoup.parse(response.body.string(), baseUrl)
@@ -83,8 +79,7 @@ class KomikavBeta : HttpSource() {
             }
     }
 
-    override fun imageUrlParse(response: Response): String =
-        throw UnsupportedOperationException()
+    override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 
     private fun parseMangaItem(element: Element): SManga = SManga.create().apply {
         url = element.select("a").first()?.absUrl("href") ?: ""
