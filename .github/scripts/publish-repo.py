@@ -133,7 +133,7 @@ all_extensions.sort(key=lambda ext: ext.packageName)
 index = index_pb2.Index(
     name="extsup",
     badgeLabel="EXT",
-    signingKey="c420d5c5a888170c85cb24f88d3df7e6ecb3accd33bef6b27b1151ddee35c3a5",
+    signingKey="41c480606c843c093028927219d54afbb746e87790c7a53bcab8b183e21c5e33",
     contact=index_pb2.Contact(
         website="https://github.com/extsup/extensions"
     ),
