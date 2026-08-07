@@ -8,14 +8,10 @@ keiyoushi {
     name = "Komikav Beta"
     versionCode = 1
     contentWarning = ContentWarning.SAFE
-    libVersion = "1.4" // ← sesuai permintaan Anda untuk kompatibilitas Android 6
+    libVersion = "1.4"
 
     source {
-        baseUrl = "https://komikav.net"
         lang = "id"
-    }
-
-    deeplink {
-        path("/..*")
+        baseUrl = "https://komikav.net"
     }
 }
