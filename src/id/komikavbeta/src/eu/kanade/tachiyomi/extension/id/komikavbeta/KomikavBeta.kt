@@ -16,6 +16,7 @@ import org.jsoup.nodes.Element
 @Source
 class KomikavBeta(
     override val lang: String = "id",
+    override val id: Long = 0L,
 ) : HttpSource() {
 
     override val supportsLatest = true
