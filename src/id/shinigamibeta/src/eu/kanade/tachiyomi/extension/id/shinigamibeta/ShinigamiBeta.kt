@@ -291,7 +291,7 @@ abstract class ShinigamiBeta :
         )
 
         private const val PREF_DOMAIN_KEY = "pref_domain"
-        private const val PREF_DOMAIN_DEFAULT = "https://09.shinigami.asia"
+        private const val PREF_DOMAIN_DEFAULT = "https://11.shinigami.asia"
         private const val PREF_RESIZE_URL_KEY = "pref_resize_url"
 
         val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ENGLISH)
