@@ -19,9 +19,6 @@ class KomikavBeta : KeiSource() {
     // Base URL situs
     override val baseUrl = "https://komikav.net"
 
-    // Preferensi bahasa (ID)
-    override val lang = "id"
-
     // Nama ekstensi
     override val name = "Komikav Beta"
 
