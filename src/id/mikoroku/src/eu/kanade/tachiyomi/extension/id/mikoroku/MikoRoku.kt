@@ -69,7 +69,7 @@ abstract class MikoRoku : ZeistManga() {
         }
     }
 
-    override val chapterCategory: String = "Chapter" 
+    override val chapterCategory: String = "Chapter"
 
     override fun pageListParse(response: Response): List<Page> {
         val document = response.asJsoup()
