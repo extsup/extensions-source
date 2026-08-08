@@ -22,7 +22,6 @@ abstract class KomikavBeta : HttpSource() {
     override val supportsLatest = true
 
 
-    }
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
         timeZone = TimeZone.getTimeZone("UTC")
