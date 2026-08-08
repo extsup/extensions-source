@@ -133,7 +133,7 @@ all_extensions.sort(key=lambda ext: ext.packageName)
 index = index_pb2.Index(
     name="extsup",
     badgeLabel="EXT",
-    signingKey="d1dbdb91bef9acf1fab4bd95c7e2725584508c6f527f96ac2851a8a3e04d64ce",
+    signingKey="af8dce867726424977496de4c45340bcf7388c184b75a823b6d7d69bee8fafd4",
     contact=index_pb2.Contact(
         website="https://github.com/extsup/extensions"
     ),
@@ -198,7 +198,7 @@ repo_json = {
         "name": "extsup Extension Repo",
         "shortName": "EXT",
         "website": "https://github.com/extsup/extensions",
-        "signingKeyFingerprint": "d1dbdb91bef9acf1fab4bd95c7e2725584508c6f527f96ac2851a8a3e04d64ce"
+        "signingKeyFingerprint": "af8dce867726424977496de4c45340bcf7388c184b75a823b6d7d69bee8fafd4"
     }
 }
 with REPO_DIR.joinpath("repo.json").open("w", encoding="utf-8") as f:
