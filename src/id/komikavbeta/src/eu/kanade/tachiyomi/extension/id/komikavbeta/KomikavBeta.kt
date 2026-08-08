@@ -47,9 +47,7 @@ abstract class KomikavBeta : HttpSource() {
             val title = resolve(objs, item.get("title")) as? String ?: continue
             val slug = resolve(objs, item.get("slug")) as? String ?: continue
             if (title.length < 2 || slug.length < 2) continue
-            val poster = (resolve(objs, item.opt("poster")) as? String)
-                ?.takeIf { !it.contains("cdn.imgkomik.xyz") && !it.contains("manhwature.com") }
-                ?: "$baseUrl/errorImage.png"
+            val poster = resolve(objs, item.opt("poster")) as? String ?: ""
             val type = resolve(objs, item.opt("type")) as? String ?: ""
             val status = resolve(objs, item.opt("status")) as? String ?: ""
             results.add(
@@ -80,12 +78,10 @@ abstract class KomikavBeta : HttpSource() {
 
         for (i in 0 until objs.length()) {
             val item = objs.opt(i) as? JSONObject ?: continue
-            // Ambil synopsis dan alter dari manga object utama
             if (item.has("title") && item.has("slug") && item.has("synopsis")) {
                 synopsis = ((resolve(objs, item.opt("synopsis")) as? String) ?: "").replace(Regex("\\s+"), " ").trim()
                 alter = resolve(objs, item.opt("alter")) as? String ?: ""
             }
-            // Ambil taxonomy (genre/author/artist)
             if (item.has("name") && item.has("type") && item.has("slug") && item.has("id")) {
                 val name = resolve(objs, item.get("name")) as? String ?: continue
                 val taxType = resolve(objs, item.get("type")) as? String ?: continue
