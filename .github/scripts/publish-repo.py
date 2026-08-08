@@ -62,7 +62,7 @@ for module in to_delete:
 # sibling in the same build dir. aapt reads the icon out of the APK
 new_extensions: list[index_pb2.Extension] = []
 
-for info_file in ARTIFACTS_DIR.glob("**/keiyoushi-source-info.json"):
+for info_file in ARTIFACTS_DIR.glob("**/extsup-source-info.json"):
     with info_file.open(encoding="utf-8") as f:
         info = json.load(f)
     package_name = info["packageName"]
