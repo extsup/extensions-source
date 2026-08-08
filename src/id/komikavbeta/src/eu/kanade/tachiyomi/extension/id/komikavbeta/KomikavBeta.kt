@@ -29,8 +29,9 @@ abstract class KomikavBeta : HttpSource() {
     }
 
     private fun thumbnailFallbackInterceptor(chain: Interceptor.Chain): okhttp3.Response {
-        val response = chain.proceed(chain.request())
         val url = chain.request().url.toString()
+        if (url.contains("errorImage")) return chain.proceed(chain.request())
+        val response = chain.proceed(chain.request())
         val isImage = url.contains("imgkomik") || url.contains("manhwature") || url.contains("wp.com")
         return if (isImage && !response.isSuccessful) {
             response.close()
