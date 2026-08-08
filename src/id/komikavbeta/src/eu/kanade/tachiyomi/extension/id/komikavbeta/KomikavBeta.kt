@@ -55,12 +55,12 @@ abstract class KomikavBeta : HttpSource() {
                     url = "/manga/$slug/"
                     this.title = title
                     thumbnail_url = poster
-                    genre = type
                     this.status = when (status) {
                         "on-going" -> SManga.ONGOING
                         "completed" -> SManga.COMPLETED
                         else -> SManga.UNKNOWN
                     }
+                    genre = type
                     initialized = false
                 },
             )
@@ -68,22 +68,45 @@ abstract class KomikavBeta : HttpSource() {
         return results
     }
 
-    private fun extractTaxonomy(objs: JSONArray): Triple<String, String, String> {
+    private fun extractDetail(objs: JSONArray, manga: SManga): SManga {
         val genres = mutableListOf<String>()
         var author = ""
         var artist = ""
+        var synopsis = ""
+        var alter = ""
+        val type = manga.genre ?: ""
+
         for (i in 0 until objs.length()) {
             val item = objs.opt(i) as? JSONObject ?: continue
-            if (!item.has("name") || !item.has("type") || !item.has("slug")) continue
-            val name = resolve(objs, item.get("name")) as? String ?: continue
-            val type = resolve(objs, item.get("type")) as? String ?: continue
-            when (type) {
-                "genre" -> genres.add(name)
-                "author" -> author = name
-                "artist" -> artist = name
+            // Ambil synopsis dan alter dari manga object utama
+            if (item.has("title") && item.has("slug") && item.has("synopsis")) {
+                synopsis = resolve(objs, item.opt("synopsis")) as? String ?: ""
+                alter = resolve(objs, item.opt("alter")) as? String ?: ""
+            }
+            // Ambil taxonomy (genre/author/artist)
+            if (item.has("name") && item.has("type") && item.has("slug") && item.has("id")) {
+                val name = resolve(objs, item.get("name")) as? String ?: continue
+                val taxType = resolve(objs, item.get("type")) as? String ?: continue
+                when (taxType) {
+                    "genre" -> genres.add(name)
+                    "author" -> author = name
+                    "artist" -> artist = name
+                }
             }
         }
-        return Triple(genres.joinToString(", "), author, artist)
+
+        val allGenres = (genres + listOfNotNull(type.ifBlank { null })).joinToString(", ")
+
+        return manga.apply {
+            description = buildString {
+                if (synopsis.isNotBlank()) append(synopsis)
+                if (alter.isNotBlank()) append("\n\nAlt: $alter")
+            }
+            genre = allGenres
+            this.author = author.ifBlank { null }
+            this.artist = artist.ifBlank { null }
+            initialized = true
+        }
     }
 
     private fun slicePage(all: List<SManga>, page: Int): MangasPage {
@@ -128,26 +151,7 @@ abstract class KomikavBeta : HttpSource() {
     override fun mangaDetailsParse(response: Response): SManga {
         val objs = JSONObject(response.body.string()).getJSONArray("_objs")
         val manga = extractMangas(objs).firstOrNull() ?: SManga.create()
-        val (genres, author, artist) = extractTaxonomy(objs)
-
-        // Ambil synopsis dan alter dari objs langsung
-        for (i in 0 until objs.length()) {
-            val item = objs.opt(i) as? JSONObject ?: continue
-            if (!item.has("title") || !item.has("slug")) continue
-            val synopsis = resolve(objs, item.opt("synopsis")) as? String ?: ""
-            val alter = resolve(objs, item.opt("alter")) as? String ?: ""
-            manga.description = buildString {
-                if (alter.isNotBlank()) append("Alt: $alter\n\n")
-                if (synopsis.isNotBlank()) append(synopsis)
-            }
-            break
-        }
-
-        manga.genre = genres
-        manga.author = author.ifBlank { null }
-        manga.artist = artist.ifBlank { null }
-        manga.initialized = true
-        return manga
+        return extractDetail(objs, manga)
     }
 
     override fun getMangaUrl(manga: SManga): String = "$baseUrl${manga.url}"
@@ -163,7 +167,7 @@ abstract class KomikavBeta : HttpSource() {
         for (i in 0 until objs.length()) {
             val item = objs.opt(i) as? JSONObject ?: continue
             if (!item.has("chapter") || !item.has("id")) continue
-            if (item.has("name")) continue // skip taxonomy
+            if (item.has("name")) continue
             val chNum = resolve(objs, item.get("chapter")) ?: continue
             val createdAt = resolve(objs, item.opt("created_at")) as? String ?: ""
             chapters.add(
@@ -184,24 +188,22 @@ abstract class KomikavBeta : HttpSource() {
     override fun pageListParse(response: Response): List<Page> {
         val objs = JSONObject(response.body.string()).getJSONArray("_objs")
         for (i in 0 until objs.length()) {
-            val arr = objs.opt(i) as? JSONArray ?: continue
-            for (j in 0 until arr.length()) {
-                val ch = arr.opt(j) as? JSONObject ?: continue
-                if (!ch.has("images")) continue
-                val imagesObj = resolve(objs, ch.getString("images")) as? JSONObject ?: continue
-                val pages = mutableListOf<Page>()
-                val keys = imagesObj.keys().asSequence().sortedBy { it.toIntOrNull() ?: 0 }
-                for ((idx, key) in keys.withIndex()) {
-                    val url = resolve(objs, imagesObj.getString(key)) as? String ?: continue
-                    pages.add(
-                        Page(
-                            index = idx,
-                            imageUrl = url,
-                        ),
-                    )
-                }
-                if (pages.isNotEmpty()) return pages
+            val item = objs.opt(i) as? JSONObject ?: continue
+            if (!item.has("images")) continue
+            val imagesObj = resolve(objs, item.getString("images")) as? JSONObject ?: continue
+            val pages = mutableListOf<Page>()
+            val keys = imagesObj.keys().asSequence().sortedBy { it.toIntOrNull() ?: 0 }
+            for ((idx, key) in keys.withIndex()) {
+                val pageObj = resolve(objs, imagesObj.getString(key)) as? JSONObject ?: continue
+                val url = resolve(objs, pageObj.opt("src")) as? String ?: continue
+                pages.add(
+                    Page(
+                        index = idx,
+                        imageUrl = url,
+                    ),
+                )
             }
+            if (pages.isNotEmpty()) return pages
         }
         return emptyList()
     }
