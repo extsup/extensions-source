@@ -80,7 +80,7 @@ abstract class KomikavBeta : HttpSource() {
             val item = objs.opt(i) as? JSONObject ?: continue
             // Ambil synopsis dan alter dari manga object utama
             if (item.has("title") && item.has("slug") && item.has("synopsis")) {
-                synopsis = resolve(objs, item.opt("synopsis")) as? String ?: ""
+                synopsis = ((resolve(objs, item.opt("synopsis")) as? String) ?: "").replace(Regex("\\s+"), " ").trim()
                 alter = resolve(objs, item.opt("alter")) as? String ?: ""
             }
             // Ambil taxonomy (genre/author/artist)
