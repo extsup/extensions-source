@@ -158,7 +158,7 @@ class ExtensionPlugin : Plugin<Project> {
         }
 
         val sourceInfoTask = tasks.register<GenerateSourceInfoTask>("generateSourceInfo") {
-            this.outputFile.set(layout.buildDirectory.file("keiyoushi-source-info.json"))
+            this.outputFile.set(layout.buildDirectory.file("extsup-source-info.json"))
         }
 
         val proguardConfiguration = configurations.create("proguard") {
