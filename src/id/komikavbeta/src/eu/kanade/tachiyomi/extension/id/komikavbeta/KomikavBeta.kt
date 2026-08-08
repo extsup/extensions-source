@@ -8,6 +8,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import keiyoushi.annotation.Source
+import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
 import org.json.JSONArray
@@ -20,6 +21,28 @@ import java.util.TimeZone
 abstract class KomikavBeta : HttpSource() {
 
     override val supportsLatest = true
+
+    override val client by lazy {
+        network.client.newBuilder()
+            .addNetworkInterceptor(::thumbnailFallbackInterceptor)
+            .build()
+    }
+
+    private fun thumbnailFallbackInterceptor(chain: Interceptor.Chain): okhttp3.Response {
+        val response = chain.proceed(chain.request())
+        val url = chain.request().url.toString()
+        val isImage = url.contains("imgkomik") || url.contains("manhwature") || url.contains("wp.com")
+        return if (isImage && !response.isSuccessful) {
+            response.close()
+            chain.proceed(
+                chain.request().newBuilder()
+                    .url("${'$'}baseUrl/errorImage.png")
+                    .build(),
+            )
+        } else {
+            response
+        }
+    }
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
         timeZone = TimeZone.getTimeZone("UTC")
