@@ -24,7 +24,7 @@ abstract class KomikavBeta : HttpSource() {
 
     override val client by lazy {
         network.client.newBuilder()
-            .addNetworkInterceptor(::thumbnailFallbackInterceptor)
+            .addInterceptor(::thumbnailFallbackInterceptor)
             .build()
     }
 
