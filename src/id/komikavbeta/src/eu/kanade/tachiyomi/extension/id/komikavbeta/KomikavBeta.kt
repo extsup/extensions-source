@@ -47,7 +47,7 @@ abstract class KomikavBeta : HttpSource() {
             val title = resolve(objs, item.get("title")) as? String ?: continue
             val slug = resolve(objs, item.get("slug")) as? String ?: continue
             if (title.length < 2 || slug.length < 2) continue
-            val poster = resolve(objs, item.opt("poster")) as? String ?: ""
+            val poster = (resolve(objs, item.opt("poster")) as? String)?.ifBlank { null } ?: "$baseUrl/errorImage.png"
             val type = resolve(objs, item.opt("type")) as? String ?: ""
             val status = resolve(objs, item.opt("status")) as? String ?: ""
             results.add(
