@@ -68,6 +68,24 @@ abstract class KomikavBeta : HttpSource() {
         return results
     }
 
+    private fun extractTaxonomy(objs: JSONArray): Triple<String, String, String> {
+        val genres = mutableListOf<String>()
+        var author = ""
+        var artist = ""
+        for (i in 0 until objs.length()) {
+            val item = objs.opt(i) as? JSONObject ?: continue
+            if (!item.has("name") || !item.has("type") || !item.has("slug")) continue
+            val name = resolve(objs, item.get("name")) as? String ?: continue
+            val type = resolve(objs, item.get("type")) as? String ?: continue
+            when (type) {
+                "genre" -> genres.add(name)
+                "author" -> author = name
+                "artist" -> artist = name
+            }
+        }
+        return Triple(genres.joinToString(", "), author, artist)
+    }
+
     private fun slicePage(all: List<SManga>, page: Int): MangasPage {
         val from = (page - 1) * 18
         val slice = if (from < all.size) all.subList(from, all.size) else emptyList()
@@ -109,8 +127,30 @@ abstract class KomikavBeta : HttpSource() {
 
     override fun mangaDetailsParse(response: Response): SManga {
         val objs = JSONObject(response.body.string()).getJSONArray("_objs")
-        return extractMangas(objs).firstOrNull() ?: SManga.create()
+        val manga = extractMangas(objs).firstOrNull() ?: SManga.create()
+        val (genres, author, artist) = extractTaxonomy(objs)
+
+        // Ambil synopsis dan alter dari objs langsung
+        for (i in 0 until objs.length()) {
+            val item = objs.opt(i) as? JSONObject ?: continue
+            if (!item.has("title") || !item.has("slug")) continue
+            val synopsis = resolve(objs, item.opt("synopsis")) as? String ?: ""
+            val alter = resolve(objs, item.opt("alter")) as? String ?: ""
+            manga.description = buildString {
+                if (alter.isNotBlank()) append("Alt: $alter\n\n")
+                if (synopsis.isNotBlank()) append(synopsis)
+            }
+            break
+        }
+
+        manga.genre = genres
+        manga.author = author.ifBlank { null }
+        manga.artist = artist.ifBlank { null }
+        manga.initialized = true
+        return manga
     }
+
+    override fun getMangaUrl(manga: SManga): String = "$baseUrl${manga.url}"
 
     // ==================== CHAPTER LIST ====================
 
@@ -123,6 +163,7 @@ abstract class KomikavBeta : HttpSource() {
         for (i in 0 until objs.length()) {
             val item = objs.opt(i) as? JSONObject ?: continue
             if (!item.has("chapter") || !item.has("id")) continue
+            if (item.has("name")) continue // skip taxonomy
             val chNum = resolve(objs, item.get("chapter")) ?: continue
             val createdAt = resolve(objs, item.opt("created_at")) as? String ?: ""
             chapters.add(
