@@ -6,13 +6,13 @@ plugins {
 
 keiyoushi {
     name = "MikoRoku"
-    versionCode = 5
+    versionCode = 6
     contentWarning = ContentWarning.MIXED
     libVersion = "1.4"
     theme = "zeistmanga"
 
     source {
         lang = "id"
-        baseUrl = "https://www.mikoroku.com"
+        baseUrl = "https://mikoroku.com"
     }
 }
