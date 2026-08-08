@@ -32,8 +32,7 @@ abstract class KomikavBeta : HttpSource() {
         val url = chain.request().url.toString()
         if (url.contains("errorImage")) return chain.proceed(chain.request())
         val response = chain.proceed(chain.request())
-        val isImage = url.contains("imgkomik") || url.contains("manhwature") || url.contains("wp.com")
-        return if (isImage && !response.isSuccessful) {
+        return if (!response.isSuccessful) {
             response.close()
             chain.proceed(
                 chain.request().newBuilder()
