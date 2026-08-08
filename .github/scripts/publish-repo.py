@@ -195,7 +195,7 @@ with REPO_DIR.joinpath("index.min.json").open("w", encoding="utf-8") as f:
 # Generate repo.json
 repo_json = {
     "meta": {
-        "name": "Extsups",
+        "name": "Extsup",
         "shortName": "extsup",
         "website": "https://github.com/extsup/extensions",
         "signingKeyFingerprint": "af8dce867726424977496de4c45340bcf7388c184b75a823b6d7d69bee8fafd4"
