@@ -13,7 +13,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 @Source
-class KomikavBeta : HttpSource() {
+abstract class KomikavBeta : HttpSource() {
 
     override val supportsLatest = true
 
