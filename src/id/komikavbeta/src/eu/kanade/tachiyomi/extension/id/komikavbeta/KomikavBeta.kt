@@ -40,7 +40,8 @@ abstract class KomikavBeta : HttpSource() {
             val poster = resolve(objs, item.opt("poster")) as? String ?: ""
             val type = resolve(objs, item.opt("type")) as? String ?: ""
             val status = resolve(objs, item.opt("status")) as? String ?: ""
-            results.add(SManga.create().apply {
+            results.add(
+            SManga.create().apply {
                 url = "/manga/$slug/"
                 this.title = title
                 thumbnail_url = poster
@@ -51,7 +52,8 @@ abstract class KomikavBeta : HttpSource() {
                     else -> SManga.UNKNOWN
                 }
                 initialized = false
-            })
+            },
+        )
         }
         return results
     }
@@ -62,8 +64,7 @@ abstract class KomikavBeta : HttpSource() {
         return MangasPage(slice, slice.size >= 18)
     }
 
-    override fun latestUpdatesRequest(page: Int): Request =
-        Request.Builder()
+    override fun latestUpdatesRequest(page: Int): Request = Request.Builder()
             .url("$baseUrl/q-data.json?page=$page")
             .header("Referer", "$baseUrl/?page=$page")
             .header("User-Agent", "Mozilla/5.0")
@@ -75,8 +76,7 @@ abstract class KomikavBeta : HttpSource() {
         return slicePage(extractMangas(objs), page)
     }
 
-    override fun popularMangaRequest(page: Int): Request =
-        Request.Builder()
+    override fun popularMangaRequest(page: Int): Request = Request.Builder()
             .url("$baseUrl/comic-list/q-data.json?page=$page")
             .header("Referer", "$baseUrl/comic-list/?page=$page")
             .header("User-Agent", "Mozilla/5.0")
@@ -103,8 +103,7 @@ abstract class KomikavBeta : HttpSource() {
         return slicePage(extractMangas(objs), page)
     }
 
-    override fun mangaDetailsRequest(manga: SManga): Request =
-        Request.Builder()
+    override fun mangaDetailsRequest(manga: SManga): Request = Request.Builder()
             .url("$baseUrl${manga.url}q-data.json")
             .header("Referer", "$baseUrl${manga.url}")
             .header("User-Agent", "Mozilla/5.0")
@@ -137,8 +136,7 @@ abstract class KomikavBeta : HttpSource() {
         return chapters.sortedByDescending { it.date_upload }
     }
 
-    override fun pageListRequest(chapter: SChapter): Request =
-        Request.Builder()
+    override fun pageListRequest(chapter: SChapter): Request = Request.Builder()
             .url("$baseUrl${chapter.url}q-data.json")
             .header("Referer", "$baseUrl${chapter.url}")
             .header("User-Agent", "Mozilla/5.0")
