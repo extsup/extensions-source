@@ -27,13 +27,15 @@ abstract class SoulScansBeta : HttpSource() {
 
     private val apiUrl = "https://img.soulscans.org/api"
 
+    private val homeSectionsUrl = "$apiUrl/comic/home-sections"
+
     private val json: Json by injectLazy()
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
 
     // ==================== POPULAR ====================
 
-    override fun popularMangaRequest(page: Int): Request = GET("$apiUrl/search?type=COMIC&limit=24&page=$page&sort=latest&order=desc")
+    override fun popularMangaRequest(page: Int): Request = GET("$apiUrl/search?type=COMIC&limit=24&page=$page&sort=views&order=desc")
 
     override fun popularMangaParse(response: Response): MangasPage {
         val obj = json.parseToJsonElement(response.body.string()).jsonObject
@@ -47,9 +49,32 @@ abstract class SoulScansBeta : HttpSource() {
 
     // ==================== LATEST ====================
 
-    override fun latestUpdatesRequest(page: Int): Request = GET("$apiUrl/search?type=COMIC&limit=24&page=$page&sort=latest&order=desc")
+    override fun latestUpdatesRequest(page: Int): Request = GET("$homeSectionsUrl?updateLimit=${24 * page}&sections=latest_comic_updates")
 
-    override fun latestUpdatesParse(response: Response): MangasPage = popularMangaParse(response)
+    override fun latestUpdatesParse(response: Response): MangasPage {
+        val obj = json.parseToJsonElement(response.body.string()).jsonObject
+        val updates = obj["latest_comic_updates"]!!.jsonArray
+
+        val slice = updates.takeLast(24)
+
+        val mangas = slice.map { item ->
+            val u = item.jsonObject
+            SManga.create().apply {
+                title = u["series_title"]!!.jsonPrimitive.content
+                url = u["series_slug"]!!.jsonPrimitive.content
+                thumbnail_url = u["poster_image_url"]?.jsonPrimitive?.content
+                status = when (u["series_status"]?.jsonPrimitive?.content) {
+                    "ONGOING" -> SManga.ONGOING
+                    "COMPLETED" -> SManga.COMPLETED
+                    "HIATUS" -> SManga.ON_HIATUS
+                    "DROPPED" -> SManga.CANCELLED
+                    else -> SManga.UNKNOWN
+                }
+            }
+        }
+
+        return MangasPage(mangas, slice.size == 24)
+    }
 
     // ==================== SEARCH ====================
 
