@@ -8,7 +8,6 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import keiyoushi.annotation.Source
-import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
 import org.json.JSONArray
@@ -22,26 +21,7 @@ abstract class KomikavBeta : HttpSource() {
 
     override val supportsLatest = true
 
-    override val client by lazy {
-        network.client.newBuilder()
-            .addInterceptor(::thumbnailFallbackInterceptor)
-            .build()
-    }
 
-    private fun thumbnailFallbackInterceptor(chain: Interceptor.Chain): okhttp3.Response {
-        val url = chain.request().url.toString()
-        if (url.contains("errorImage")) return chain.proceed(chain.request())
-        val response = chain.proceed(chain.request())
-        return if (!response.isSuccessful) {
-            response.close()
-            chain.proceed(
-                chain.request().newBuilder()
-                    .url("$baseUrl/errorImage.png")
-                    .build(),
-            )
-        } else {
-            response
-        }
     }
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
