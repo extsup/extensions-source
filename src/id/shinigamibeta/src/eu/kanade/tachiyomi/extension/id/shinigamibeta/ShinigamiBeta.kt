@@ -288,6 +288,7 @@ abstract class ShinigamiBeta :
             "shounen-ai",
             "shoujo-ai",
             "shoujo",
+            "sports",
         )
 
         private const val PREF_DOMAIN_KEY = "pref_domain"
