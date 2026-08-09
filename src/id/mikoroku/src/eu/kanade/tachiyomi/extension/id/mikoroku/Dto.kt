@@ -15,6 +15,7 @@ class MangaEntry(
     val rating: Double = 0.0,
     val status: String = "",
     val isUp: Boolean = false,
+    val type: String = "",
     val author: String = "",
     val artist: String = "",
 ) {
@@ -22,8 +23,15 @@ class MangaEntry(
         url = "/detail.html?slug=$slug"
         title = this@MangaEntry.title
         thumbnail_url = resolveCover(img)
-        genre = genres.joinToString()
-        description = desc
+        val typeLabel = if (this@MangaEntry.type.isNotBlank()) listOf(this@MangaEntry.type.replaceFirstChar { it.uppercase() }) else emptyList()
+        genre = (genres + typeLabel).joinToString()
+        description = buildString {
+            append(desc)
+            if (altTitle.isNotBlank()) {
+                append("\n\nJudul Alternatif:\n")
+                append(altTitle.replace("; ", "\n"))
+            }
+        }
         author = this@MangaEntry.author
         artist = this@MangaEntry.artist
         status = parseStatus(this@MangaEntry.status)
