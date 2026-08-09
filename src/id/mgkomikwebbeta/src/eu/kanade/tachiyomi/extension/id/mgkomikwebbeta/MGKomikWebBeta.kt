@@ -25,8 +25,6 @@ abstract class MGKomikWebBeta : HttpSource() {
 
     override val supportsLatest = true
 
-    override val lang = "id"
-
     override fun headersBuilder(): Headers.Builder = super.headersBuilder()
         .add("User-Agent", "Mozilla/5.0 (Android 13; Mobile; rv:109.0) Gecko/109.0 Firefox/109.0")
         .add("Referer", "$baseUrl/")
