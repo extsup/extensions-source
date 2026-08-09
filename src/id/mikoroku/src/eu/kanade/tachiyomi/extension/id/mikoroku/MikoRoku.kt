@@ -115,12 +115,26 @@ abstract class MikoRoku : KeiSource() {
         return fetchAllManga().firstOrNull { it.slug == slug }?.toSManga(::resolveCover)
     }
 
+    private suspend fun fetchAllFeedEntries(): List<BloggerEntry> {
+        val all = mutableListOf<BloggerEntry>()
+        var startIndex = 1
+        val pageSize = 500
+        while (true) {
+            val feed = client.get(
+                "$chapterFeedUrl?alt=json&max-results=$pageSize&start-index=$startIndex",
+                headers,
+            ).parseAs<BloggerFeed>()
+            val entries = feed.feed.entries.orEmpty()
+            all.addAll(entries)
+            if (entries.size < pageSize) break
+            startIndex += pageSize
+        }
+        return all
+    }
+
     private suspend fun fetchChaptersForEntry(entry: MangaEntry): List<SChapter> {
         val normalizedManga = normalizeTitle(entry.title)
-        val feed = client.get("$chapterFeedUrl?alt=json&max-results=500", headers)
-            .parseAs<BloggerFeed>()
-
-        return feed.feed.entries.orEmpty()
+        return fetchAllFeedEntries()
             .filter { normalizeTitle(it.title.value).startsWith(normalizedManga) }
             .mapNotNull { post ->
                 val num = chapterRegex.find(post.title.value)?.groupValues?.get(1)
