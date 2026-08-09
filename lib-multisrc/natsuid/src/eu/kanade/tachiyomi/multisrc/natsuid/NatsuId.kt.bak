@@ -4,6 +4,7 @@ import android.util.Log
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.asObservableSuccess
+import eu.kanade.tachiyomi.network.await
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -12,8 +13,11 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.asJsoup
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
+import keiyoushi.utils.firstInstance
+import keiyoushi.utils.firstInstanceOrNull
+import keiyoushi.utils.parseAs
+import keiyoushi.utils.toJsonString
+import keiyoushi.utils.tryParse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import okhttp3.CacheControl
@@ -24,6 +28,7 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import okhttp3.brotli.BrotliInterceptor
 import okhttp3.internal.closeQuietly
 import okio.IOException
 import org.jsoup.Jsoup
@@ -38,32 +43,15 @@ abstract class NatsuId : HttpSource() {
 
     protected open val dateFormat: SimpleDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
 
-
-    protected val json = Json { ignoreUnknownKeys = true }
-
-    protected inline fun <reified T> Response.parseAs(): T =
-        json.decodeFromString(transformJsonResponse(body!!.string()))
-
-    protected fun tryParseDate(str: String?): Long {
-        if (str.isNullOrBlank()) return 0L
-        return try { dateFormat.parse(str)!!.time } catch (_: Exception) { 0L }
-    }
-
-    protected inline fun <reified T> List<T>.toJsonString(): String =
-        json.encodeToString(kotlinx.serialization.serializer(), this)
-
-    protected inline fun <reified T> List<Filter<*>>.firstInstance(): T =
-        filterIsInstance<T>().first()
-
-    protected inline fun <reified T> List<Filter<*>>.firstInstanceOrNull(): T? =
-        filterIsInstance<T>().firstOrNull()
-
     override val supportsLatest: Boolean = true
 
     protected open fun OkHttpClient.Builder.customizeClient(): OkHttpClient.Builder = this
 
     final override val client: OkHttpClient = network.client.newBuilder()
         .customizeClient()
+        // fix disk cache
+        .apply {
+            val index = networkInterceptors().indexOfFirst { it is BrotliInterceptor }
             if (index >= 0) interceptors().add(networkInterceptors().removeAt(index))
         }
         .build()
@@ -131,7 +119,7 @@ abstract class NatsuId : HttpSource() {
             val url = "$baseUrl/wp-admin/admin-ajax.php?type=search_form&action=get_nonce"
             val response = client.newCall(GET(url, headers)).execute()
 
-            Jsoup.parseBodyFragment(response.body!!.string())
+            Jsoup.parseBodyFragment(response.body.string())
                 .selectFirst("input[name=search_nonce]")
                 ?.attr("value")
                 ?.takeIf { it.isNotBlank() }
@@ -163,7 +151,7 @@ abstract class NatsuId : HttpSource() {
         val url = "$baseUrl/wp-json/wp/v2/genre?per_page=100&page=1&orderby=count&order=desc"
         val response = metadataClient.newCall(
             GET(url, headers, CacheControl.FORCE_CACHE),
-        ).execute()
+        ).await()
 
         if (!response.isSuccessful) {
             metadataClient.newCall(
@@ -191,7 +179,7 @@ abstract class NatsuId : HttpSource() {
         }
 
         val data = try {
-            response.parseAs<List<Term>>()
+            response.parseAs<List<Term>>(transform = ::transformJsonResponse)
         } catch (e: Throwable) {
             Log.e(name, "Failed to parse genre filters", e)
 
@@ -219,7 +207,7 @@ abstract class NatsuId : HttpSource() {
     }
 
     override fun searchMangaParse(response: Response): MangasPage {
-        val document = Jsoup.parseBodyFragment(response.body!!.string(), baseUrl)
+        val document = Jsoup.parseBodyFragment(response.body.string(), baseUrl)
         val slugs = document.select("div > a[href*=/manga/]:has(> img)").map {
             it.absUrl("href").toHttpUrl().pathSegments[1]
         }.ifEmpty {
@@ -235,7 +223,7 @@ abstract class NatsuId : HttpSource() {
         }.build()
 
         val details = client.newCall(GET(url, headers)).execute()
-            .parseAs<List<Manga>>()
+            .parseAs<List<Manga>>(transform = ::transformJsonResponse)
             .filterNot { manga ->
                 manga.embedded.getTerms("type").contains("Novel")
             }
@@ -266,7 +254,7 @@ abstract class NatsuId : HttpSource() {
             return client.newCall(GET(url, headers))
                 .asObservableSuccess()
                 .map { response ->
-                    val manga = response.parseAs<List<Manga>>()[0]
+                    val manga = response.parseAs<List<Manga>>(transform = ::transformJsonResponse)[0]
 
                     if (manga.embedded.getTerms("type").contains("Novel")) {
                         throw Exception("Novels are not supported")
@@ -281,7 +269,7 @@ abstract class NatsuId : HttpSource() {
 
     private val descriptionIdRegex = Regex("""ID: (\d+)""")
     private fun getMangaId(manga: SManga): String = if (manga.url.startsWith("{")) {
-        json.decodeFromString<MangaUrl>(manga.url).id.toString()
+        manga.url.parseAs<MangaUrl>().id.toString()
     } else if (descriptionIdRegex.containsMatchIn(manga.description?.trim().orEmpty())) {
         descriptionIdRegex.find(manga.description!!.trim())!!.groupValues[1]
     } else {
@@ -302,7 +290,7 @@ abstract class NatsuId : HttpSource() {
 
     override fun getMangaUrl(manga: SManga): String {
         val slug = if (manga.url.startsWith("{")) {
-            json.decodeFromString<MangaUrl>(manga.url).slug
+            manga.url.parseAs<MangaUrl>().slug
         } else {
             "$baseUrl${manga.url}".toHttpUrl().pathSegments[1]
         }
@@ -311,7 +299,7 @@ abstract class NatsuId : HttpSource() {
     }
 
     override fun mangaDetailsParse(response: Response): SManga {
-        val manga = response.parseAs<Manga>()
+        val manga = response.parseAs<Manga>(transform = ::transformJsonResponse)
         val appendId = response.request.url.fragment == "true"
 
         return manga.toSManga(appendId)
@@ -335,13 +323,13 @@ abstract class NatsuId : HttpSource() {
     protected open val chapterDateAttribute = "datetime"
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        val document = Jsoup.parseBodyFragment(response.body!!.string(), baseUrl)
+        val document = Jsoup.parseBodyFragment(response.body.string(), baseUrl)
 
         return document.select(chapterListSelector).map {
             SChapter.create().apply {
                 setUrlWithoutDomain(it.absUrl("href"))
                 name = it.selectFirst(chapterNameSelector)!!.ownText()
-                date_upload = tryParseDate(
+                date_upload = dateFormat.tryParse(
                     it.selectFirst(chapterDateSelector)?.attr(chapterDateAttribute),
                 )
             }

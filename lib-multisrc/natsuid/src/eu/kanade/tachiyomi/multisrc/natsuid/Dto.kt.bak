@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.multisrc.natsuid
 
 import eu.kanade.tachiyomi.source.model.SManga
+import keiyoushi.utils.toJsonString
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jsoup.Jsoup
@@ -23,7 +24,7 @@ class Manga(
     val embedded: Embedded,
 ) {
     fun toSManga(appendId: Boolean = false) = SManga.create().apply {
-        url = kotlinx.serialization.json.Json.encodeToString(MangaUrl.serializer(), MangaUrl(id, slug))
+        url = MangaUrl(id, slug).toJsonString()
         title = Parser.unescapeEntities(this@Manga.title.rendered, false)
         description = buildString {
             append(Jsoup.parseBodyFragment(content.rendered).wholeText())
