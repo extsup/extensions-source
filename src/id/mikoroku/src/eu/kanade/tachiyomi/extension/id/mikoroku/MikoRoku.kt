@@ -75,7 +75,6 @@ abstract class MikoRoku : KeiSource() {
             .sortedBy { slugIndex[it.slug] }
         val notInFeed = allManga
             .filter { it.slug !in slugIndex }
-            .sortedByDescending { it.rating }
         return paginate(inFeed + notInFeed, page)
     }
 
