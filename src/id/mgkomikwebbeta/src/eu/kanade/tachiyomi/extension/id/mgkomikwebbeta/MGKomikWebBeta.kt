@@ -152,8 +152,7 @@ abstract class MGKomikWebBeta : HttpSource() {
         }
     }
 
-    private fun parseChapterList(document: Document): List<SChapter> =
-        document.select("li.chapter-list-item").map { element ->
+    private fun parseChapterList(document: Document): List<SChapter> = document.select("li.chapter-list-item").map { element ->
             val anchor = element.selectFirst("a.chapter-link")!!
             SChapter.create().apply {
                 setUrlWithoutDomain(anchor.attr("href"))
