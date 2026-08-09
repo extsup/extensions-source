@@ -52,7 +52,31 @@ abstract class MikoRoku : KeiSource() {
 
     override suspend fun getPopularManga(page: Int): MangasPage = paginate(fetchAllManga().sortedByDescending { it.rating }, page)
 
-    override suspend fun getLatestUpdates(page: Int): MangasPage = paginate(fetchAllManga().filter { it.isUp }, page)
+    override suspend fun getLatestUpdates(page: Int): MangasPage {
+        val allManga = fetchAllManga()
+        val feed = client.get("$chapterFeedUrl?alt=json&max-results=500", headers)
+            .parseAs<BloggerFeed>()
+
+        val seen = mutableSetOf<String>()
+        val orderedSlugs = mutableListOf<String>()
+
+        feed.feed.entries.orEmpty().forEach { post ->
+            val normalizedPost = normalizeTitle(post.title.value)
+            val match = allManga.firstOrNull { entry ->
+                normalizedPost.startsWith(normalizeTitle(entry.title))
+            }
+            if (match != null && seen.add(match.slug)) {
+                orderedSlugs.add(match.slug)
+            }
+        }
+
+        val slugIndex = orderedSlugs.withIndex().associate { (i, slug) -> slug to i }
+        val sorted = allManga
+            .filter { it.slug in slugIndex }
+            .sortedBy { slugIndex[it.slug] }
+
+        return paginate(sorted, page)
+    }
 
     override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
         val q = query.lowercase()
