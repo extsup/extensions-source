@@ -12,8 +12,6 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.asJsoup
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import okhttp3.CacheControl
@@ -149,7 +147,7 @@ abstract class NatsuId : HttpSource() {
                 .build()
         }.build()
 
-    override fun getFilterList() = runBlocking(Dispatchers.IO) {
+    override fun getFilterList(): FilterList {
         val filters: MutableList<Filter<*>> = mutableListOf(
             SortFilter(),
             TypeFilter(),
@@ -158,9 +156,14 @@ abstract class NatsuId : HttpSource() {
         )
 
         val url = "$baseUrl/wp-json/wp/v2/genre?per_page=100&page=1&orderby=count&order=desc"
-        val response = metadataClient.newCall(
-            GET(url, headers, CacheControl.FORCE_CACHE),
-        ).execute()
+
+        val response = try {
+            metadataClient.newCall(
+                GET(url, headers, CacheControl.FORCE_CACHE),
+            ).execute()
+        } catch (_: Exception) {
+            return FilterList(filters)
+        }
 
         if (!response.isSuccessful) {
             metadataClient.newCall(
@@ -184,7 +187,7 @@ abstract class NatsuId : HttpSource() {
                 ),
             )
 
-            return@runBlocking FilterList(filters)
+            return FilterList(filters)
         }
 
         val data = try {
@@ -199,7 +202,7 @@ abstract class NatsuId : HttpSource() {
                 ),
             )
 
-            return@runBlocking FilterList(filters)
+            return FilterList(filters)
         }
 
         filters.addAll(
@@ -212,7 +215,7 @@ abstract class NatsuId : HttpSource() {
             ),
         )
 
-        FilterList(filters)
+        return FilterList(filters)
     }
 
     override fun searchMangaParse(response: Response): MangasPage {
