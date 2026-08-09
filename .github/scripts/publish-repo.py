@@ -141,7 +141,7 @@ index = index_pb2.Index(
     badgeLabel="extsup",
     signingKey="af8dce867726424977496de4c45340bcf7388c184b75a823b6d7d69bee8fafd4",
     contact=index_pb2.Contact(
-        website="https://github.com/extsup/extensions"
+        website="https://www.facebook.com/profile.php?id=61591490231900&mibextid=rS40aB7S9Ucbxw6v"
     ),
     extensionList=index_pb2.ExtensionList(extensions=all_extensions),
 )
@@ -203,7 +203,7 @@ repo_json = {
     "meta": {
         "name": "Extsup",
         "shortName": "extsup",
-        "website": "https://github.com/extsup/extensions",
+        "website": "https://www.facebook.com/profile.php?id=61591490231900&mibextid=rS40aB7S9Ucbxw6v",
         "signingKeyFingerprint": "af8dce867726424977496de4c45340bcf7388c184b75a823b6d7d69bee8fafd4"
     }
 }
