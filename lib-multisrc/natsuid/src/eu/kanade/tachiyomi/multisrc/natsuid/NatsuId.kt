@@ -40,8 +40,7 @@ abstract class NatsuId : HttpSource() {
 
     protected val json = Json { ignoreUnknownKeys = true }
 
-    protected inline fun <reified T> Response.parseAs(): T =
-        json.decodeFromString(transformJsonResponse(body!!.string()))
+    protected inline fun <reified T> Response.parseAs(): T = json.decodeFromString(transformJsonResponse(body!!.string()))
 
     protected fun tryParseDate(str: String?): Long {
         if (str.isNullOrBlank()) return 0L
@@ -52,14 +51,11 @@ abstract class NatsuId : HttpSource() {
         }
     }
 
-    protected inline fun <reified T> List<T>.toJsonString(): String =
-        json.encodeToString(kotlinx.serialization.serializer(), this)
+    protected inline fun <reified T> List<T>.toJsonString(): String = json.encodeToString(kotlinx.serialization.serializer(), this)
 
-    protected inline fun <reified T> List<Filter<*>>.firstInstance(): T =
-        filterIsInstance<T>().first()
+    protected inline fun <reified T> List<Filter<*>>.firstInstance(): T = filterIsInstance<T>().first()
 
-    protected inline fun <reified T> List<Filter<*>>.firstInstanceOrNull(): T? =
-        filterIsInstance<T>().firstOrNull()
+    protected inline fun <reified T> List<Filter<*>>.firstInstanceOrNull(): T? = filterIsInstance<T>().firstOrNull()
 
     override val supportsLatest: Boolean = true
 
