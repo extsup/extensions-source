@@ -14,8 +14,7 @@ import java.util.concurrent.TimeUnit
 @Source
 class KiryuuBeta : NatsuId() {
 
-    override fun OkHttpClient.Builder.customizeClient(): OkHttpClient.Builder =
-        addInterceptor(RateLimitInterceptor(4, 1)).build().newBuilder()
+    override fun OkHttpClient.Builder.customizeClient(): OkHttpClient.Builder = addInterceptor(RateLimitInterceptor(4, 1)).build().newBuilder()
 
     override fun chapterListRequest(manga: SManga): Request {
         val url = super.chapterListRequest(manga).url.newBuilder()
