@@ -54,13 +54,10 @@ abstract class MikoRoku : KeiSource() {
 
     override suspend fun getLatestUpdates(page: Int): MangasPage {
         val allManga = fetchAllManga()
-        val feed = client.get("$chapterFeedUrl?alt=json&max-results=500", headers)
-            .parseAs<BloggerFeed>()
-
         val seen = mutableSetOf<String>()
         val orderedSlugs = mutableListOf<String>()
 
-        feed.feed.entries.orEmpty().forEach { post ->
+        fetchAllFeedEntries().forEach { post ->
             val normalizedPost = normalizeTitle(post.title.value)
             val match = allManga.firstOrNull { entry ->
                 normalizedPost.startsWith(normalizeTitle(entry.title))
