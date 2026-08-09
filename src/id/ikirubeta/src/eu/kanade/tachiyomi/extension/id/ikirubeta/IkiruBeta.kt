@@ -1,4 +1,4 @@
-package eu.kanade.tachiyomi.extension.id.mangatale
+package eu.kanade.tachiyomi.extension.id.ikirubeta
 
 import eu.kanade.tachiyomi.multisrc.natsuid.NatsuId
 import keiyoushi.annotation.Source
@@ -8,7 +8,7 @@ import okhttp3.Response
 import java.util.concurrent.TimeUnit
 
 @Source
-abstract class Ikiru : NatsuId() {
+abstract class IkiruBeta : NatsuId() {
 
     override fun OkHttpClient.Builder.customizeClient(): OkHttpClient.Builder = addInterceptor(RateLimitInterceptor(12, 3)).build().newBuilder()
 
