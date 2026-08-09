@@ -10,8 +10,7 @@ import java.util.concurrent.TimeUnit
 @Source
 abstract class Ikiru : NatsuId() {
 
-    override fun OkHttpClient.Builder.customizeClient(): OkHttpClient.Builder =
-        addInterceptor(RateLimitInterceptor(12, 3)).build().newBuilder()
+    override fun OkHttpClient.Builder.customizeClient(): OkHttpClient.Builder = addInterceptor(RateLimitInterceptor(12, 3)).build().newBuilder()
 
     override fun transformJsonResponse(responseBody: String): String {
         val jsonStart = responseBody.indexOfFirst { it == '{' || it == '[' }
