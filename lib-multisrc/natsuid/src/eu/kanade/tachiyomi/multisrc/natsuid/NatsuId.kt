@@ -12,8 +12,6 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.asJsoup
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
 import okhttp3.CacheControl
 import okhttp3.Call
 import okhttp3.Callback
@@ -36,9 +34,7 @@ abstract class NatsuId : HttpSource() {
 
     protected open val dateFormat: SimpleDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
 
-    protected val json = Json { ignoreUnknownKeys = true }
-
-    protected inline fun <reified T> Response.parseAs(): T = json.decodeFromString(transformJsonResponse(body!!.string()))
+    protected fun Response.bodyString(): String = transformJsonResponse(body!!.string())
 
     protected fun tryParseDate(str: String?): Long {
         if (str.isNullOrBlank()) return 0L
@@ -49,7 +45,7 @@ abstract class NatsuId : HttpSource() {
         }
     }
 
-    protected inline fun <reified T> List<T>.toJsonString(): String = json.encodeToString(kotlinx.serialization.serializer(), this)
+    protected fun List<*>.toJsonString(): String = org.json.JSONArray(this).toString()
 
     protected inline fun <reified T> List<Filter<*>>.firstInstance(): T = filterIsInstance<T>().first()
 
@@ -191,7 +187,7 @@ abstract class NatsuId : HttpSource() {
         }
 
         val data = try {
-            response.parseAs<List<Term>>()
+            org.json.JSONArray(response.bodyString()).toTermList()
         } catch (e: Throwable) {
             Log.e(name, "Failed to parse genre filters", e)
 
@@ -235,7 +231,7 @@ abstract class NatsuId : HttpSource() {
         }.build()
 
         val details = client.newCall(GET(url, headers)).execute()
-            .parseAs<List<Manga>>()
+            .let { org.json.JSONArray(it.bodyString()).toMangaList() }
             .filterNot { manga ->
                 manga.embedded.getTerms("type").contains("Novel")
             }
@@ -266,7 +262,7 @@ abstract class NatsuId : HttpSource() {
             return client.newCall(GET(url, headers))
                 .asObservableSuccess()
                 .map { response ->
-                    val manga = response.parseAs<List<Manga>>()[0]
+                    val manga = org.json.JSONArray(response.bodyString()).toMangaList()[0]
 
                     if (manga.embedded.getTerms("type").contains("Novel")) {
                         throw Exception("Novels are not supported")
@@ -281,7 +277,7 @@ abstract class NatsuId : HttpSource() {
 
     private val descriptionIdRegex = Regex("""ID: (\d+)""")
     private fun getMangaId(manga: SManga): String = if (manga.url.startsWith("{")) {
-        json.decodeFromString<MangaUrl>(manga.url).id.toString()
+        MangaUrl.fromJsonString(manga.url).id.toString()
     } else if (descriptionIdRegex.containsMatchIn(manga.description?.trim().orEmpty())) {
         descriptionIdRegex.find(manga.description!!.trim())!!.groupValues[1]
     } else {
@@ -302,7 +298,7 @@ abstract class NatsuId : HttpSource() {
 
     open fun buildMangaUrl(manga: SManga): String {
         val slug = if (manga.url.startsWith("{")) {
-            json.decodeFromString<MangaUrl>(manga.url).slug
+            MangaUrl.fromJsonString(manga.url).slug
         } else {
             "$baseUrl${manga.url}".toHttpUrl().pathSegments[1]
         }
@@ -311,7 +307,7 @@ abstract class NatsuId : HttpSource() {
     }
 
     override fun mangaDetailsParse(response: Response): SManga {
-        val manga = response.parseAs<Manga>()
+        val manga = Manga(org.json.JSONObject(response.bodyString()))
         val appendId = response.request.url.fragment == "true"
 
         return manga.toSManga(appendId)
