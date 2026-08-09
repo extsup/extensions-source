@@ -7,19 +7,18 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
+import java.text.SimpleDateFormat
+import java.util.Locale
 import keiyoushi.annotation.Source
+import keiyoushi.network.rateLimit
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
-import java.text.SimpleDateFormat
-import java.util.Locale
-import java.util.concurrent.TimeUnit
 
 @Source
 abstract class MGKomikWebBeta : HttpSource() {
@@ -31,12 +30,13 @@ abstract class MGKomikWebBeta : HttpSource() {
         .add("Referer", "$baseUrl/")
 
     override val client: OkHttpClient = network.client.newBuilder()
-        .addInterceptor(RateLimitInterceptor(4, 1))
+        .rateLimit(4, 1)
         .build()
 
     // ============================== Popular ===============================
 
-    override fun popularMangaRequest(page: Int): Request = GET("$baseUrl/komik/?order_by=trending&page=$page", headers)
+    override fun popularMangaRequest(page: Int): Request =
+        GET("$baseUrl/komik/?order_by=trending&page=$page", headers)
 
     override fun popularMangaParse(response: Response): MangasPage {
         val document = Jsoup.parse(response.body!!.string())
@@ -47,9 +47,11 @@ abstract class MGKomikWebBeta : HttpSource() {
 
     // ============================== Latest ================================
 
-    override fun latestUpdatesRequest(page: Int): Request = GET("$baseUrl/komik/?order_by=latest&page=$page", headers)
+    override fun latestUpdatesRequest(page: Int): Request =
+        GET("$baseUrl/komik/?order_by=latest&page=$page", headers)
 
-    override fun latestUpdatesParse(response: Response): MangasPage = popularMangaParse(response)
+    override fun latestUpdatesParse(response: Response): MangasPage =
+        popularMangaParse(response)
 
     // ============================== Search ================================
 
@@ -58,7 +60,8 @@ abstract class MGKomikWebBeta : HttpSource() {
             .addQueryParameter("q", query)
             .addQueryParameter("page", page.toString())
             .build()
-        return GET(url, headers)
+
+        return GET(url.toString(), headers)
     }
 
     override fun searchMangaParse(response: Response): MangasPage {
@@ -67,7 +70,7 @@ abstract class MGKomikWebBeta : HttpSource() {
             SManga.create().apply {
                 setUrlWithoutDomain(element.attr("href"))
                 thumbnail_url = element.selectFirst("img.manga-cover")?.attr("src")
-                title = element.selectFirst("img.manga-cover")?.attr("alt")?.trim() ?: ""
+                title = element.selectFirst("img.manga-cover")?.attr("alt")?.trim().orEmpty()
             }
         }
         val hasNext = document.selectFirst("a.page-link:contains(Next)") != null
@@ -78,7 +81,8 @@ abstract class MGKomikWebBeta : HttpSource() {
 
     // ============================== Details ===============================
 
-    override fun mangaDetailsRequest(manga: SManga): Request = GET(baseUrl + manga.url, headers)
+    override fun mangaDetailsRequest(manga: SManga): Request =
+        GET("$baseUrl${manga.url}", headers)
 
     override fun mangaDetailsParse(response: Response): SManga {
         val document = Jsoup.parse(response.body!!.string())
@@ -87,7 +91,8 @@ abstract class MGKomikWebBeta : HttpSource() {
 
     // ============================== Chapters ==============================
 
-    override fun chapterListRequest(manga: SManga): Request = GET(baseUrl + manga.url, headers)
+    override fun chapterListRequest(manga: SManga): Request =
+        GET("$baseUrl${manga.url}", headers)
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val document = Jsoup.parse(response.body!!.string())
@@ -96,7 +101,8 @@ abstract class MGKomikWebBeta : HttpSource() {
 
     // ============================== Pages =================================
 
-    override fun pageListRequest(chapter: SChapter): Request = GET(baseUrl + chapter.url, headers)
+    override fun pageListRequest(chapter: SChapter): Request =
+        GET("$baseUrl${chapter.url}", headers)
 
     override fun pageListParse(response: Response): List<Page> {
         val document = Jsoup.parse(response.body!!.string())
@@ -108,7 +114,8 @@ abstract class MGKomikWebBeta : HttpSource() {
         }
     }
 
-    override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
+    override fun imageUrlParse(response: Response): String =
+        throw UnsupportedOperationException()
 
     // ============================== Helpers ===============================
 
@@ -117,91 +124,78 @@ abstract class MGKomikWebBeta : HttpSource() {
         return SManga.create().apply {
             setUrlWithoutDomain(anchor.attr("href"))
             thumbnail_url = element.selectFirst("img.manga-cover")?.attr("src")
-            title = element.selectFirst("img.manga-cover")?.attr("alt")?.trim() ?: ""
+            title = element.selectFirst("img.manga-cover")?.attr("alt")?.trim().orEmpty()
         }
     }
 
-    private fun parseMangaDetails(document: Document): SManga {
-        val typeKeywords = setOf("manga", "manhwa", "manhua", "webtoon")
-        val metaItems = document.select("div.meta-item:not(.status-badge)").map { it.text().trim() }
-        val types = metaItems.filter { it.lowercase() in typeKeywords }
-        val authorText = metaItems
-            .firstOrNull { it.startsWith("Author:", ignoreCase = true) }
-            ?.removePrefix("Author:")?.trim()
-            .takeIf { it?.isNotBlank() == true }
-        val genres = document.select("div.genre-list a.genre-tag")
-            .map { it.text().trim() }
-            .filter { it.lowercase() !in typeKeywords }
-        val genreString = (genres + types).joinToString(", ")
-        val statusText = document.selectFirst("div.meta-item.status-badge")?.text()?.trim() ?: ""
-        val status = when {
-            statusText.contains("ongoing", ignoreCase = true) -> SManga.ONGOING
-            statusText.contains("completed", ignoreCase = true) -> SManga.COMPLETED
-            statusText.contains("hiatus", ignoreCase = true) -> SManga.ON_HIATUS
+    private fun parseMangaDetails(document: Document): SManga = SManga.create().apply {
+        title = document.selectFirst("h1.manga-title")?.text().orEmpty()
+        thumbnail_url = document.selectFirst("meta[property='og:image']")?.attr("content")
+        description = document.selectFirst("div.manga-description")?.text()
+
+        val statusBadge = document.selectFirst("div.meta-item.status-badge")?.text().orEmpty()
+        status = when {
+            statusBadge.contains("ongoing", true) -> SManga.ONGOING
+            statusBadge.contains("completed", true) -> SManga.COMPLETED
+            statusBadge.contains("hiatus", true) -> SManga.ON_HIATUS
             else -> SManga.UNKNOWN
         }
-        return SManga.create().apply {
-            title = document.selectFirst("h1.manga-title")?.text()?.trim() ?: ""
-            thumbnail_url = document.selectFirst("meta[property='og:image']")?.attr("content")
-            description = document.selectFirst("div.manga-description")?.text()?.trim()
-            genre = genreString
-            author = authorText
-            this.status = status
-        }
+
+        val metaItems = document.select("div.meta-item:not(.status-badge)").map { it.text().trim() }
+
+        author = metaItems.firstOrNull { it.contains("Author", true) }
+            ?.substringAfter(":")?.trim()
+
+        val typeKeywords = setOf("manga", "manhwa", "manhua", "webtoon")
+        val types = metaItems.filter { it.lowercase() in typeKeywords }
+
+        val genresList = document.select("div.genre-list a.genre-tag")
+            .map { it.text().trim() }
+            .filterNot { it.lowercase() in typeKeywords }
+
+        genre = (genresList + types).joinToString(", ")
     }
 
-    private fun parseChapterList(document: Document): List<SChapter> = document.select("li.chapter-list-item").map { element ->
-        val anchor = element.selectFirst("a.chapter-link")!!
-        SChapter.create().apply {
-            setUrlWithoutDomain(anchor.attr("href"))
-            name = element.selectFirst("span.chapter-number")?.text()?.trim() ?: ""
-            date_upload = parseDate(element.selectFirst("span.chapter-date")?.text()?.trim() ?: "")
+    private fun parseChapterList(document: Document): List<SChapter> =
+        document.select("li.chapter-list-item").map { element ->
+            val anchor = element.selectFirst("a.chapter-link")!!
+            SChapter.create().apply {
+                setUrlWithoutDomain(anchor.attr("href"))
+                name = element.selectFirst("span.chapter-number")?.text().orEmpty()
+                date_upload = parseDate(element.selectFirst("span.chapter-date")?.text().orEmpty())
+            }
         }
-    }
 
     private fun parseDate(text: String): Long {
         if (text.isBlank()) return 0L
-        val now = System.currentTimeMillis()
-        Regex("""(\d+)\s*detik""").find(text)?.let { return now - it.groupValues[1].toLong() * 1_000 }
-        Regex("""(\d+)\s*menit""").find(text)?.let { return now - it.groupValues[1].toLong() * 60_000 }
-        Regex("""(\d+)\s*jam""").find(text)?.let { return now - it.groupValues[1].toLong() * 3_600_000 }
-        Regex("""(\d+)\s*hari""").find(text)?.let { return now - it.groupValues[1].toLong() * 86_400_000 }
-        Regex("""(\d+)\s*minggu""").find(text)?.let { return now - it.groupValues[1].toLong() * 7 * 86_400_000 }
-        Regex("""(\d+)\s*bulan""").find(text)?.let { return now - it.groupValues[1].toLong() * 30 * 86_400_000 }
-        Regex("""(\d+)\s*tahun""").find(text)?.let { return now - it.groupValues[1].toLong() * 365 * 86_400_000 }
-        Regex("""(\d+)\s*second""").find(text)?.let { return now - it.groupValues[1].toLong() * 1_000 }
-        Regex("""(\d+)\s*minute""").find(text)?.let { return now - it.groupValues[1].toLong() * 60_000 }
-        Regex("""(\d+)\s*hour""").find(text)?.let { return now - it.groupValues[1].toLong() * 3_600_000 }
-        Regex("""(\d+)\s*day""").find(text)?.let { return now - it.groupValues[1].toLong() * 86_400_000 }
-        Regex("""(\d+)\s*week""").find(text)?.let { return now - it.groupValues[1].toLong() * 7 * 86_400_000 }
-        Regex("""(\d+)\s*month""").find(text)?.let { return now - it.groupValues[1].toLong() * 30 * 86_400_000 }
-        Regex("""(\d+)\s*year""").find(text)?.let { return now - it.groupValues[1].toLong() * 365 * 86_400_000 }
-        return listOf(
+
+        relativeDateRegex.find(text)?.let { match ->
+            val (amountStr, unit) = match.destructured
+            val amount = amountStr.toLongOrNull() ?: return@let
+
+            val multiplier = when (unit.lowercase()) {
+                "second" -> 1_000L
+                "minute" -> 60_000L
+                "hour" -> 3_600_000L
+                "day" -> 86_400_000L
+                "week" -> 604_800_000L
+                "month" -> 2_592_000_000L
+                "year" -> 31_536_000_000L
+                else -> 0L
+            }
+            return System.currentTimeMillis() - (amount * multiplier)
+        }
+
+        val dateFormats = arrayOf(
             SimpleDateFormat("dd MMM yyyy", Locale("id")),
-            SimpleDateFormat("dd MMM yy", Locale("id")),
-            SimpleDateFormat("dd MMMM yyyy", Locale("id")),
-            SimpleDateFormat("yyyy-MM-dd", Locale.ROOT),
-            SimpleDateFormat("dd/MM/yyyy", Locale.ROOT),
-        ).firstNotNullOfOrNull {
-            runCatching { it.parse(text)?.time }.getOrNull()?.takeIf { t -> t > 0L }
+        )
+
+        return dateFormats.firstNotNullOfOrNull { formatter ->
+            runCatching { formatter.parse(text)?.time }.getOrNull()?.takeIf { t -> t > 0L }
         } ?: 0L
     }
-}
 
-private class RateLimitInterceptor(
-    private val requests: Int,
-    private val periodSeconds: Long,
-) : Interceptor {
-    private val minInterval = TimeUnit.SECONDS.toMillis(periodSeconds) / requests
-    private var lastRequestTime = 0L
-
-    override fun intercept(chain: Interceptor.Chain): Response {
-        synchronized(this) {
-            val now = System.currentTimeMillis()
-            val wait = minInterval - (now - lastRequestTime)
-            if (wait > 0) Thread.sleep(wait)
-            lastRequestTime = System.currentTimeMillis()
-        }
-        return chain.proceed(chain.request())
+    companion object {
+        private val relativeDateRegex = Regex("""(\d+)\s*(\w+)s?""", RegexOption.IGNORE_CASE)
     }
 }

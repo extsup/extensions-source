@@ -11,7 +11,8 @@ import java.util.concurrent.TimeUnit
 @Source
 abstract class IkiruBeta : NatsuId() {
 
-    override fun OkHttpClient.Builder.customizeClient(): OkHttpClient.Builder = addInterceptor(RateLimitInterceptor(12, 3)).build().newBuilder()
+    override fun OkHttpClient.Builder.customizeClient(): OkHttpClient.Builder =
+        addInterceptor(RateLimitInterceptor(12, 3)).build().newBuilder()
 
     override fun getFilterList() = FilterList()
 
