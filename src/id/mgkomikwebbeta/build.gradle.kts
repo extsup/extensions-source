@@ -6,13 +6,12 @@ plugins {
 
 keiyoushi {
     name = "MGKomikWeb Beta"
-    versionCode = 4
+    versionCode = 5
     contentWarning = ContentWarning.SAFE
-    libVersion = "1.6"
+    libVersion = "1.4"
 
     source {
         baseUrl = "https://web1.mgkomik.cc"
         lang = "id"
     }
 }
-// v2

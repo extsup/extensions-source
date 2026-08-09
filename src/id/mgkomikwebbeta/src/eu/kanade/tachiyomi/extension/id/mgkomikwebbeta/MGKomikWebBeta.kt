@@ -6,52 +6,67 @@ import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
-import eu.kanade.tachiyomi.source.model.SMangaUpdate
+import eu.kanade.tachiyomi.source.online.HttpSource
 import keiyoushi.annotation.Source
-import keiyoushi.source.KeiSource
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.Interceptor
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.text.SimpleDateFormat
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 @Source
-abstract class MGKomikWebBeta : KeiSource() {
+abstract class MGKomikWebBeta : HttpSource() {
 
-    override fun Headers.Builder.configureHeaders() = this
+    override val supportsLatest = true
+
+    override val lang = "id"
+
+    override fun headersBuilder(): Headers.Builder = super.headersBuilder()
         .add("User-Agent", "Mozilla/5.0 (Android 13; Mobile; rv:109.0) Gecko/109.0 Firefox/109.0")
+        .add("Referer", "$baseUrl/")
 
-    // ==================== POPULAR ====================
+    override val client: OkHttpClient = network.client.newBuilder()
+        .addInterceptor(RateLimitInterceptor(4, 1))
+        .build()
 
-    override suspend fun getPopularManga(page: Int): MangasPage {
-        val response = client.newCall(GET("$baseUrl/komik/?order_by=trending&page=$page", headers)).execute()
-        val document = Jsoup.parse(response.body.string())
+    // ============================== Popular ===============================
+
+    override fun popularMangaRequest(page: Int): Request =
+        GET("$baseUrl/komik/?order_by=trending&page=$page", headers)
+
+    override fun popularMangaParse(response: Response): MangasPage {
+        val document = Jsoup.parse(response.body!!.string())
         val mangas = document.select("div.manga-card").map { parseMangaFromElement(it) }
         val hasNext = document.selectFirst("a.page-link:contains(Next)") != null
         return MangasPage(mangas, hasNext)
     }
 
-    // ==================== LATEST ====================
+    // ============================== Latest ================================
 
-    override suspend fun getLatestUpdates(page: Int): MangasPage {
-        val response = client.newCall(GET("$baseUrl/komik/?order_by=latest&page=$page", headers)).execute()
-        val document = Jsoup.parse(response.body.string())
-        val mangas = document.select("div.manga-card").map { parseMangaFromElement(it) }
-        val hasNext = document.selectFirst("a.page-link:contains(Next)") != null
-        return MangasPage(mangas, hasNext)
-    }
+    override fun latestUpdatesRequest(page: Int): Request =
+        GET("$baseUrl/komik/?order_by=latest&page=$page", headers)
 
-    // ==================== SEARCH ====================
+    override fun latestUpdatesParse(response: Response): MangasPage = popularMangaParse(response)
 
-    override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
+    // ============================== Search ================================
+
+    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         val url = "$baseUrl/search/".toHttpUrl().newBuilder()
             .addQueryParameter("q", query)
             .addQueryParameter("page", page.toString())
             .build()
-        val response = client.newCall(GET(url, headers)).execute()
-        val document = Jsoup.parse(response.body.string())
+        return GET(url, headers)
+    }
+
+    override fun searchMangaParse(response: Response): MangasPage {
+        val document = Jsoup.parse(response.body!!.string())
         val mangas = document.select("a.manga-card").map { element ->
             SManga.create().apply {
                 setUrlWithoutDomain(element.attr("href"))
@@ -63,7 +78,46 @@ abstract class MGKomikWebBeta : KeiSource() {
         return MangasPage(mangas, hasNext)
     }
 
-    // ==================== HELPERS ====================
+    override fun getFilterList(): FilterList = FilterList()
+
+    // ============================== Details ===============================
+
+    override fun mangaDetailsRequest(manga: SManga): Request =
+        GET(baseUrl + manga.url, headers)
+
+    override fun mangaDetailsParse(response: Response): SManga {
+        val document = Jsoup.parse(response.body!!.string())
+        return parseMangaDetails(document)
+    }
+
+    // ============================== Chapters ==============================
+
+    override fun chapterListRequest(manga: SManga): Request =
+        GET(baseUrl + manga.url, headers)
+
+    override fun chapterListParse(response: Response): List<SChapter> {
+        val document = Jsoup.parse(response.body!!.string())
+        return parseChapterList(document)
+    }
+
+    // ============================== Pages =================================
+
+    override fun pageListRequest(chapter: SChapter): Request =
+        GET(baseUrl + chapter.url, headers)
+
+    override fun pageListParse(response: Response): List<Page> {
+        val document = Jsoup.parse(response.body!!.string())
+        return document.select("img[data-page]").mapIndexed { index, img ->
+            Page(
+                index = index,
+                imageUrl = img.attr("src").takeIf { it.isNotBlank() } ?: img.attr("data-src"),
+            )
+        }
+    }
+
+    override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
+
+    // ============================== Helpers ===============================
 
     private fun parseMangaFromElement(element: Element): SManga {
         val anchor = element.selectFirst("a[href]")!!
@@ -72,21 +126,6 @@ abstract class MGKomikWebBeta : KeiSource() {
             thumbnail_url = element.selectFirst("img.manga-cover")?.attr("src")
             title = element.selectFirst("img.manga-cover")?.attr("alt")?.trim() ?: ""
         }
-    }
-
-    // ==================== MANGA UPDATE ====================
-
-    override suspend fun fetchMangaUpdate(
-        manga: SManga,
-        chapters: List<SChapter>,
-        fetchDetails: Boolean,
-        fetchChapters: Boolean,
-    ): SMangaUpdate {
-        val response = client.newCall(GET(baseUrl + manga.url, headers)).execute()
-        val document = Jsoup.parse(response.body.string())
-        val updatedManga = if (fetchDetails) parseMangaDetails(document) else manga
-        val updatedChapters = if (fetchChapters) parseChapterList(document) else chapters
-        return SMangaUpdate(manga = updatedManga, chapters = updatedChapters)
     }
 
     private fun parseMangaDetails(document: Document): SManga {
@@ -118,14 +157,15 @@ abstract class MGKomikWebBeta : KeiSource() {
         }
     }
 
-    private fun parseChapterList(document: Document): List<SChapter> = document.select("li.chapter-list-item").map { element ->
-        val anchor = element.selectFirst("a.chapter-link")!!
-        SChapter.create().apply {
-            setUrlWithoutDomain(anchor.attr("href"))
-            name = element.selectFirst("span.chapter-number")?.text()?.trim() ?: ""
-            date_upload = parseDate(element.selectFirst("span.chapter-date")?.text()?.trim() ?: "")
+    private fun parseChapterList(document: Document): List<SChapter> =
+        document.select("li.chapter-list-item").map { element ->
+            val anchor = element.selectFirst("a.chapter-link")!!
+            SChapter.create().apply {
+                setUrlWithoutDomain(anchor.attr("href"))
+                name = element.selectFirst("span.chapter-number")?.text()?.trim() ?: ""
+                date_upload = parseDate(element.selectFirst("span.chapter-date")?.text()?.trim() ?: "")
+            }
         }
-    }
 
     private fun parseDate(text: String): Long {
         if (text.isBlank()) return 0L
@@ -154,17 +194,22 @@ abstract class MGKomikWebBeta : KeiSource() {
             runCatching { it.parse(text)?.time }.getOrNull()?.takeIf { t -> t > 0L }
         } ?: 0L
     }
+}
 
-    // ==================== PAGE LIST ====================
+private class RateLimitInterceptor(
+    private val requests: Int,
+    private val periodSeconds: Long,
+) : Interceptor {
+    private val minInterval = TimeUnit.SECONDS.toMillis(periodSeconds) / requests
+    private var lastRequestTime = 0L
 
-    override suspend fun getPageList(chapter: SChapter): List<Page> {
-        val response = client.newCall(GET(baseUrl + chapter.url, headers)).execute()
-        val document = Jsoup.parse(response.body.string())
-        return document.select("img[data-page]").mapIndexed { index, img ->
-            Page(
-                index = index,
-                imageUrl = img.attr("src").takeIf { it.isNotBlank() } ?: img.attr("data-src"),
-            )
+    override fun intercept(chain: Interceptor.Chain): Response {
+        synchronized(this) {
+            val now = System.currentTimeMillis()
+            val wait = minInterval - (now - lastRequestTime)
+            if (wait > 0) Thread.sleep(wait)
+            lastRequestTime = System.currentTimeMillis()
         }
+        return chain.proceed(chain.request())
     }
 }
