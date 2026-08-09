@@ -7,6 +7,9 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
+import kotlin.time.Duration.Companion.seconds
+import java.text.SimpleDateFormat
+import java.util.Locale
 import keiyoushi.annotation.Source
 import keiyoushi.network.rateLimit
 import okhttp3.Headers
@@ -30,7 +33,7 @@ abstract class MGKomikWebBeta : HttpSource() {
         .add("Referer", "$baseUrl/")
 
     override val client: OkHttpClient = network.client.newBuilder()
-        .rateLimit(4, 1)
+        .rateLimit(4, 1.seconds)
         .build()
 
     // ============================== Popular ===============================
