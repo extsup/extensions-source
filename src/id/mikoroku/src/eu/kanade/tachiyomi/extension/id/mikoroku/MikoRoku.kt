@@ -142,7 +142,7 @@ abstract class MikoRoku : KeiSource() {
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val doc = client.get("https://www.mikodrive.my.id${chapter.url}", headers).asJsoup()
-        return doc.select(".post-body img[src], #post-body img[src]")
+        return doc.select("div.separator img[src]")
             .mapIndexed { index, img -> Page(index, imageUrl = img.attr("abs:src")) }
     }
 
