@@ -73,10 +73,14 @@ abstract class MikoRoku : KeiSource() {
         return SMangaUpdate(
             manga = if (fetchDetails && entry != null) {
                 entry.toSManga(::resolveCover).also { it.url = manga.url }
-            } else null,
+            } else {
+                null
+            },
             chapters = if (fetchChapters && entry != null) {
                 fetchChaptersForEntry(entry)
-            } else null,
+            } else {
+                null
+            },
         )
     }
 
