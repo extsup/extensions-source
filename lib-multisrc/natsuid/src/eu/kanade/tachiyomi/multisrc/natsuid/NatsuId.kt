@@ -283,7 +283,7 @@ abstract class NatsuId : HttpSource() {
         descriptionIdRegex.find(manga.description!!.trim())!!.groupValues[1]
     } else {
         val document = client.newCall(
-            GET(getMangaUrl(manga), headers),
+            GET(buildMangaUrl(manga), headers),
         ).execute().asJsoup()
 
         document.selectFirst("#gallery-list")!!.attr("hx-get")
@@ -297,7 +297,7 @@ abstract class NatsuId : HttpSource() {
         return GET("$baseUrl/wp-json/wp/v2/manga/$id?_embed#$appendId", headers)
     }
 
-    override fun getMangaUrl(manga: SManga): String {
+    open fun buildMangaUrl(manga: SManga): String {
         val slug = if (manga.url.startsWith("{")) {
             json.decodeFromString<MangaUrl>(manga.url).slug
         } else {
