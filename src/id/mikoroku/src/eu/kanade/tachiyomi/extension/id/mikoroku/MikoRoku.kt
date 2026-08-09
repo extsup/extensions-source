@@ -57,7 +57,9 @@ abstract class MikoRoku : KeiSource() {
         val seen = mutableSetOf<String>()
         val orderedSlugs = mutableListOf<String>()
 
-        fetchAllFeedEntries().forEach { post ->
+        val feedEntries = client.get("$chapterFeedUrl?alt=json&max-results=500", headers)
+            .parseAs<BloggerFeed>().feed.entries.orEmpty()
+        feedEntries.forEach { post ->
             val normalizedPost = normalizeTitle(post.title.value)
             val match = allManga.firstOrNull { entry ->
                 normalizedPost.startsWith(normalizeTitle(entry.title))
