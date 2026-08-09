@@ -12,7 +12,8 @@ on:
       - '.github/workflows/build_push.yml'
   workflow_dispatch:
 
-permissions: {}
+permissions:
+  contents: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -76,6 +77,22 @@ jobs:
         run: |
           echo ${{ secrets.SIGNING_KEY }} | base64 -d > signingkey.jks
 
+      - name: Run spotlessApply and Auto-commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./gradlew spotlessApply
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain)" ]; then
+            git add .
+            git commit -m "style: auto-apply spotless formatting [skip ci]"
+            git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
+            git push origin main
+          else
+            echo "No formatting changes to commit."
+          fi
+
       - name: Build extensions (${{ matrix.chunk.number }})
         env:
           MODULES: ${{ join(matrix.chunk.modules, ' ') }}
@@ -103,7 +120,6 @@ jobs:
   publish:
     name: Publish extension repo
     needs: [prepare, build]
-    # Run whenever there's anything to publish, new/changed builds OR only deletions
     if: >-
       always() &&
       github.repository == 'extsup/extensions-source' &&
