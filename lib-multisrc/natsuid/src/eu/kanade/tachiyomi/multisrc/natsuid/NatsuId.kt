@@ -64,8 +64,6 @@ abstract class NatsuId : HttpSource() {
 
     final override val client: OkHttpClient = network.client.newBuilder()
         .customizeClient()
-            if (index >= 0) interceptors().add(networkInterceptors().removeAt(index))
-        }
         .build()
 
     override fun headersBuilder() = super.headersBuilder()
