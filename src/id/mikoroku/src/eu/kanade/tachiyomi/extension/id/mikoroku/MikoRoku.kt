@@ -71,18 +71,17 @@ abstract class MikoRoku : KeiSource() {
         val slug = manga.url.substringAfter("slug=")
         val entry = fetchAllManga().firstOrNull { it.slug == slug }
 
-        return SMangaUpdate(
-            manga = if (fetchDetails && entry != null) {
-                entry.toSManga(::resolveCover).also { it.url = manga.url }
-            } else {
-                null
-            },
-            chapters = if (fetchChapters && entry != null) {
-                fetchChaptersForEntry(entry)
-            } else {
-                null
-            },
-        )
+        val updatedManga = if (fetchDetails && entry != null) {
+            entry.toSManga(::resolveCover).also { it.url = manga.url }
+        } else {
+            manga
+        }
+        val updatedChapters = if (fetchChapters && entry != null) {
+            fetchChaptersForEntry(entry)
+        } else {
+            chapters
+        }
+        return SMangaUpdate(updatedManga, updatedChapters)
     }
 
     override fun getMangaUrl(manga: SManga): String = "$baseUrl${manga.url}"
