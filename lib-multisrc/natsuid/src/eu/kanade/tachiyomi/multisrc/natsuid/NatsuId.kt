@@ -45,7 +45,11 @@ abstract class NatsuId : HttpSource() {
 
     protected fun tryParseDate(str: String?): Long {
         if (str.isNullOrBlank()) return 0L
-        return try { dateFormat.parse(str)!!.time } catch (_: Exception) { 0L }
+        return try {
+            dateFormat.parse(str)!!.time
+        } catch (_: Exception) {
+            0L
+        }
     }
 
     protected inline fun <reified T> List<T>.toJsonString(): String =
