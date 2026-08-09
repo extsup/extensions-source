@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.extension.id.mikoroku
 
-import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -20,7 +19,7 @@ class MangaEntry(
     val artist: String = "",
 ) {
     fun toSManga(resolveCover: (String) -> String) = SManga.create().apply {
-        url = "/detail.html?slug=${slug}"
+        url = "/detail.html?slug=$slug"
         title = this@MangaEntry.title
         thumbnail_url = resolveCover(img)
         genre = genres.joinToString()

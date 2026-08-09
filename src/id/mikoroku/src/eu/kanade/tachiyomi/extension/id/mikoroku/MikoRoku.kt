@@ -18,20 +18,16 @@ abstract class MikoRoku : KeiSource() {
 
     override val supportsLatest = true
 
-    private val mangaJsonUrl =
-        "https://raw.githubusercontent.com/moemaomao/mymangadata/main/all-manga.json"
-    private val chapterFeedUrl =
-        "https://www.mikodrive.my.id/feeds/posts/default"
-    private val githubRaw =
-        "https://raw.githubusercontent.com/moemaomao/mymangadata/main/"
+    private val mangaJsonUrl = "https://raw.githubusercontent.com/moemaomao/mymangadata/main/all-manga.json"
+    private val chapterFeedUrl = "https://www.mikodrive.my.id/feeds/posts/default"
+    private val githubRaw = "https://raw.githubusercontent.com/moemaomao/mymangadata/main/"
 
     private val chapterRegex = Regex(
         """(?:chapter|ch\.?|chap\.?)\s*(\d+(?:\.\d+)?)""",
         RegexOption.IGNORE_CASE,
     )
 
-    private fun normalizeTitle(title: String): String =
-        title.lowercase().replace(Regex("[^a-z0-9]"), "")
+    private fun normalizeTitle(title: String): String = title.lowercase().replace(Regex("[^a-z0-9]"), "")
 
     private fun resolveCover(url: String): String {
         val trimmed = url.trimEnd('.').trim()
@@ -43,8 +39,7 @@ abstract class MikoRoku : KeiSource() {
         }
     }
 
-    private suspend fun fetchAllManga(): List<MangaEntry> =
-        client.get(mangaJsonUrl, headers).parseAs()
+    private suspend fun fetchAllManga(): List<MangaEntry> = client.get(mangaJsonUrl, headers).parseAs()
 
     private fun paginate(list: List<MangaEntry>, page: Int): MangasPage {
         val from = (page - 1) * PAGE_SIZE
@@ -54,11 +49,9 @@ abstract class MikoRoku : KeiSource() {
         )
     }
 
-    override suspend fun getPopularManga(page: Int): MangasPage =
-        paginate(fetchAllManga().sortedByDescending { it.rating }, page)
+    override suspend fun getPopularManga(page: Int): MangasPage = paginate(fetchAllManga().sortedByDescending { it.rating }, page)
 
-    override suspend fun getLatestUpdates(page: Int): MangasPage =
-        paginate(fetchAllManga().filter { it.isUp }, page)
+    override suspend fun getLatestUpdates(page: Int): MangasPage = paginate(fetchAllManga().filter { it.isUp }, page)
 
     override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
         val q = query.lowercase()
@@ -117,8 +110,7 @@ abstract class MikoRoku : KeiSource() {
             .sortedByDescending { it.name }
     }
 
-    override fun getChapterUrl(chapter: SChapter): String =
-        "https://www.mikodrive.my.id${chapter.url}"
+    override fun getChapterUrl(chapter: SChapter): String = "https://www.mikodrive.my.id${chapter.url}"
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val doc = client.get("https://www.mikodrive.my.id${chapter.url}", headers).asJsoup()
