@@ -70,11 +70,13 @@ abstract class MikoRoku : KeiSource() {
         }
 
         val slugIndex = orderedSlugs.withIndex().associate { (i, slug) -> slug to i }
-        val sorted = allManga
+        val inFeed = allManga
             .filter { it.slug in slugIndex }
             .sortedBy { slugIndex[it.slug] }
-
-        return paginate(sorted, page)
+        val notInFeed = allManga
+            .filter { it.slug !in slugIndex }
+            .sortedByDescending { it.rating }
+        return paginate(inFeed + notInFeed, page)
     }
 
     override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
