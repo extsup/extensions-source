@@ -12,7 +12,7 @@ import okhttp3.Response
 import java.util.concurrent.TimeUnit
 
 @Source
-class KiryuuBeta : NatsuId() {
+abstract class KiryuuBeta : NatsuId() {
 
     override fun OkHttpClient.Builder.customizeClient(): OkHttpClient.Builder = addInterceptor(RateLimitInterceptor(4, 1)).build().newBuilder()
 
