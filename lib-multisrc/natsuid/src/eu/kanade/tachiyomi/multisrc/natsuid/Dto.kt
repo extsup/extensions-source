@@ -36,8 +36,7 @@ class Embedded(obj: JSONObject) {
         }
         ?: emptyList()
 
-    fun getTerms(type: String): List<String> =
-        terms.find { it.getOrNull(0)?.taxonomy == type }?.map { it.name } ?: emptyList()
+    fun getTerms(type: String): List<String> = terms.find { it.getOrNull(0)?.taxonomy == type }?.map { it.name } ?: emptyList()
 }
 
 class MangaUrl(val id: Int, val slug: String) {
@@ -87,8 +86,6 @@ class Manga(obj: JSONObject) {
     }
 }
 
-fun JSONArray.toMangaList(): List<Manga> =
-    (0 until length()).map { Manga(getJSONObject(it)) }
+fun JSONArray.toMangaList(): List<Manga> = (0 until length()).map { Manga(getJSONObject(it)) }
 
-fun JSONArray.toTermList(): List<Term> =
-    (0 until length()).map { Term(getJSONObject(it)) }
+fun JSONArray.toTermList(): List<Term> = (0 until length()).map { Term(getJSONObject(it)) }
