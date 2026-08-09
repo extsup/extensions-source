@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.extension.id.ikirubeta
 
 import eu.kanade.tachiyomi.multisrc.natsuid.NatsuId
+import eu.kanade.tachiyomi.source.model.FilterList
 import keiyoushi.annotation.Source
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -11,6 +12,8 @@ import java.util.concurrent.TimeUnit
 abstract class IkiruBeta : NatsuId() {
 
     override fun OkHttpClient.Builder.customizeClient(): OkHttpClient.Builder = addInterceptor(RateLimitInterceptor(12, 3)).build().newBuilder()
+
+    override fun getFilterList() = FilterList()
 
     override fun transformJsonResponse(responseBody: String): String {
         val jsonStart = responseBody.indexOfFirst { it == '{' || it == '[' }
