@@ -118,7 +118,7 @@ abstract class ZeistManga : HttpSource() {
 
         val mangalist = mangas.toMutableList()
         if (mangas.size == MAX_MANGA_RESULTS + 1) {
-            mangalist.removeLast()
+            mangalist.removeAt(mangalist.size - 1)
             return MangasPage(mangalist, true)
         }
 
