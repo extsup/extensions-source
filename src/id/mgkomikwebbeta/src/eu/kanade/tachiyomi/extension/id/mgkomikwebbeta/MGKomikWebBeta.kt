@@ -1,13 +1,13 @@
 package eu.kanade.tachiyomi.extension.id.mgkomikwebbeta
 
 import eu.kanade.tachiyomi.network.GET
-import eu.kanade.tachiyomi.util.asJsoup
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
+import eu.kanade.tachiyomi.util.asJsoup
 import keiyoushi.annotation.Source
 import keiyoushi.network.rateLimit
 import okhttp3.Headers
@@ -15,8 +15,6 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
-import org.jsoup.nodes.Document
-import org.jsoup.nodes.Document
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.text.SimpleDateFormat
@@ -81,7 +79,6 @@ abstract class MGKomikWebBeta : HttpSource() {
 
     // ============================== Details ===============================
 
-
     override fun mangaDetailsParse(response: Response): SManga {
         val document = response.asJsoup()
         return SManga.create().apply {
@@ -98,7 +95,6 @@ abstract class MGKomikWebBeta : HttpSource() {
             }
 
             val metaItems = document.select("div.meta-item:not(.status-badge)").map { it.text().trim() }
-
 
             val typeKeywords = setOf("manga", "manhwa", "manhua", "webtoon")
             val types = metaItems.filter { it.lowercase() in typeKeywords }
@@ -122,7 +118,6 @@ abstract class MGKomikWebBeta : HttpSource() {
 
     // ============================== Pages =================================
 
-
     override fun pageListParse(response: Response): List<Page> {
         val document = response.asJsoup()
         return document.select("img[data-page]").mapIndexed { index, img ->
@@ -145,7 +140,6 @@ abstract class MGKomikWebBeta : HttpSource() {
             title = element.selectFirst("img.manga-cover")?.attr("alt")?.trim().orEmpty()
         }
     }
-
 
     private fun parseChapterList(document: Document): List<SChapter> = document.select("li.chapter-list-item").map { element ->
         val anchor = element.selectFirst("a.chapter-link")!!
