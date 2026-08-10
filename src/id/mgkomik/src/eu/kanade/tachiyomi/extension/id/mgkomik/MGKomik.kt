@@ -24,7 +24,7 @@ abstract class MGKomik : Madara() {
         set("Sec-CH-UA-Model", "\"\"")
     }
 
-    override val client = network.cloudflareClient.newBuilder()
+    override val client = network.client.newBuilder()
         .addInterceptor { chain ->
             val request = chain.request()
             val path = request.url.encodedPath
