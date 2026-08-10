@@ -88,6 +88,7 @@ jobs:
             git add .
             git commit -m "style: auto-apply spotless formatting [skip ci]"
             git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
+            git pull --rebase origin ori
             git push origin ori
           else
             echo "No formatting changes to commit."
