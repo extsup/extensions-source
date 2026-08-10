@@ -12,6 +12,7 @@ import keiyoushi.utils.parseAs
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Request
 import okhttp3.Response
@@ -31,6 +32,7 @@ abstract class SoulScansBeta : HttpSource() {
 
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
 
+    // Cache untuk latest updates
     private var cachedLatestUpdates: List<kotlinx.serialization.json.JsonElement>? = null
     private var latestPage = 1
 
@@ -53,11 +55,12 @@ abstract class SoulScansBeta : HttpSource() {
     override fun latestUpdatesRequest(page: Int): Request {
         latestPage = page
         if (page == 1) {
-            cachedLatestUpdates = null
+            cachedLatestUpdates = null // Hapus cache agar data segar
         }
         if (cachedLatestUpdates == null) {
             return GET("$homeSectionsUrl?updateLimit=216&sections=latest_comic_updates")
         }
+        // Halaman > 1 tidak perlu request
         return GET("$homeSectionsUrl?updateLimit=0&sections=latest_comic_updates")
     }
 
@@ -100,6 +103,8 @@ abstract class SoulScansBeta : HttpSource() {
 
     // ==================== DETAIL ====================
 
+    override fun mangaDetailsRequest(manga: SManga): Request = GET("$apiUrl/series/comic/${manga.url}")
+
     override fun mangaDetailsParse(response: Response): SManga {
         val obj = response.parseAs<JsonObject>()
         return SManga.create().apply {
@@ -121,7 +126,11 @@ abstract class SoulScansBeta : HttpSource() {
         }
     }
 
+    override fun getMangaUrl(manga: SManga): String = "$baseUrl/comic/${manga.url}"
+
     // ==================== CHAPTER LIST ====================
+
+    override fun chapterListRequest(manga: SManga): Request = GET("$apiUrl/series/comic/${manga.url}")
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val obj = response.parseAs<JsonObject>()
@@ -146,7 +155,11 @@ abstract class SoulScansBeta : HttpSource() {
         }.sortedByDescending { it.chapter_number }
     }
 
+    override fun getChapterUrl(chapter: SChapter): String = "$baseUrl/comic/${chapter.url}"
+
     // ==================== PAGES ====================
+
+    override fun pageListRequest(chapter: SChapter): Request = GET("$apiUrl/series/comic/${chapter.url}")
 
     override fun pageListParse(response: Response): List<Page> {
         val obj = response.parseAs<JsonObject>()
