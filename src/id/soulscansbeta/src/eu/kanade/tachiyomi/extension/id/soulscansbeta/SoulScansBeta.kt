@@ -9,9 +9,11 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import keiyoushi.annotation.Source
 import keiyoushi.utils.parseAs
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Request
 import okhttp3.Response
@@ -29,56 +31,109 @@ abstract class SoulScansBeta : HttpSource() {
 
     private val homeSectionsUrl = "$apiUrl/comic/home-sections"
 
-    private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+    private val dateFormatter = DateTimeFormatter.ofPattern(
+        "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+        Locale.US,
+    )
 
-    private var cachedLatestUpdates: List<kotlinx.serialization.json.JsonElement>? = null
+    private var cachedLatestUpdates: List<JsonElement>? = null
     private var latestPage = 1
 
     // ==================== POPULAR ====================
 
-    override fun popularMangaRequest(page: Int): Request = GET("$apiUrl/search?type=COMIC&limit=24&page=$page&sort=views&order=desc")
+    override fun popularMangaRequest(page: Int): Request =
+        GET(
+            "$apiUrl/search?type=COMIC&limit=24&page=$page&sort=views&order=desc",
+        )
 
     override fun popularMangaParse(response: Response): MangasPage {
         val obj = response.parseAs<JsonObject>()
-        val data = requireNotNull(obj["data"]) { "Missing 'data' field" }.jsonArray
-        val totalPages = requireNotNull(obj["total_pages"]) { "Missing 'total_pages' field" }.jsonPrimitive.int
-        val page = requireNotNull(obj["page"]) { "Missing 'page' field" }.jsonPrimitive.int
 
-        val mangas = data.map { parseMangaFromList(it.jsonObject) }
-        return MangasPage(mangas, page < totalPages)
+        val data = requireNotNull(obj["data"]) {
+            "Missing 'data' field"
+        }.jsonArray
+
+        val totalPages = requireNotNull(obj["total_pages"]) {
+            "Missing 'total_pages' field"
+        }.jsonPrimitive.int
+
+        val page = requireNotNull(obj["page"]) {
+            "Missing 'page' field"
+        }.jsonPrimitive.int
+
+        val mangas = data.map { item ->
+            parseMangaFromList(item.jsonObject)
+        }
+
+        return MangasPage(
+            mangas = mangas,
+            hasNextPage = page < totalPages,
+        )
     }
 
     // ==================== LATEST ====================
 
     override fun latestUpdatesRequest(page: Int): Request {
         latestPage = page
+
         if (page == 1) {
             cachedLatestUpdates = null
         }
-        if (cachedLatestUpdates == null) {
-            return GET("$homeSectionsUrl?updateLimit=216&sections=latest_comic_updates")
+
+        return if (cachedLatestUpdates == null) {
+            GET(
+                "$homeSectionsUrl?updateLimit=216&sections=latest_comic_updates",
+            )
+        } else {
+            GET(
+                "$homeSectionsUrl?updateLimit=0&sections=latest_comic_updates",
+            )
         }
-        return GET("$homeSectionsUrl?updateLimit=0&sections=latest_comic_updates")
     }
 
     override fun latestUpdatesParse(response: Response): MangasPage {
         if (cachedLatestUpdates == null) {
             val obj = response.parseAs<JsonObject>()
-            cachedLatestUpdates = requireNotNull(obj["latest_comic_updates"]) { "Missing 'latest_comic_updates' field" }.jsonArray
+
+            cachedLatestUpdates = requireNotNull(
+                obj["latest_comic_updates"],
+            ) {
+                "Missing 'latest_comic_updates' field"
+            }.jsonArray
         }
 
-        val all = cachedLatestUpdates!!
+        val all = cachedLatestUpdates.orEmpty()
+
         val start = (latestPage - 1) * 36
         val end = minOf(start + 36, all.size)
-        val pageItems = all.subList(start, end)
+
+        val pageItems = if (start < all.size) {
+            all.subList(start, end)
+        } else {
+            emptyList()
+        }
 
         val mangas = pageItems.map { item ->
-            val u = item.jsonObject
+            val obj = item.jsonObject
+
             SManga.create().apply {
-                title = requireNotNull(u["series_title"]) { "Missing 'series_title'" }.jsonPrimitive.content
-                url = requireNotNull(u["series_slug"]) { "Missing 'series_slug'" }.jsonPrimitive.content
-                thumbnail_url = u["poster_image_url"]?.jsonPrimitive?.content
-                status = when (u["series_status"]?.jsonPrimitive?.content) {
+                title = requireNotNull(obj["series_title"]) {
+                    "Missing 'series_title'"
+                }.jsonPrimitive.content
+
+                url = requireNotNull(obj["series_slug"]) {
+                    "Missing 'series_slug'"
+                }.jsonPrimitive.content
+
+                thumbnail_url = obj["poster_image_url"]
+                    ?.jsonPrimitive
+                    ?.content
+
+                status = when (
+                    obj["series_status"]
+                        ?.jsonPrimitive
+                        ?.content
+                ) {
                     "ONGOING" -> SManga.ONGOING
                     "COMPLETED" -> SManga.COMPLETED
                     "HIATUS" -> SManga.ON_HIATUS
@@ -89,35 +144,77 @@ abstract class SoulScansBeta : HttpSource() {
         }
 
         val hasNextPage = end < all.size
-        return MangasPage(mangas, hasNextPage)
+
+        return MangasPage(
+            mangas = mangas,
+            hasNextPage = hasNextPage,
+        )
     }
 
     // ==================== SEARCH ====================
 
-    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request = GET("$apiUrl/search?type=COMIC&limit=24&page=$page&sort=latest&order=desc&q=$query")
+    override fun searchMangaRequest(
+        page: Int,
+        query: String,
+        filters: FilterList,
+    ): Request =
+        GET(
+            "$apiUrl/search?type=COMIC&limit=24&page=$page&sort=latest&order=desc&q=$query",
+        )
 
-    override fun searchMangaParse(response: Response): MangasPage = popularMangaParse(response)
+    override fun searchMangaParse(response: Response): MangasPage =
+        popularMangaParse(response)
 
     // ==================== DETAIL ====================
 
     override fun mangaDetailsParse(response: Response): SManga {
         val obj = response.parseAs<JsonObject>()
+
         return SManga.create().apply {
-            title = requireNotNull(obj["title"]) { "Missing 'title'" }.jsonPrimitive.content
-            url = requireNotNull(obj["slug"]) { "Missing 'slug'" }.jsonPrimitive.content
-            thumbnail_url = obj["poster_image_url"]?.jsonPrimitive?.content
-            description = obj["synopsis"]?.jsonPrimitive?.content
-            author = obj["author_name"]?.jsonPrimitive?.content
-            artist = obj["artist_name"]?.jsonPrimitive?.content
-            status = when (obj["comic_status"]?.jsonPrimitive?.content) {
+            title = requireNotNull(obj["title"]) {
+                "Missing 'title'"
+            }.jsonPrimitive.content
+
+            url = requireNotNull(obj["slug"]) {
+                "Missing 'slug'"
+            }.jsonPrimitive.content
+
+            thumbnail_url = obj["poster_image_url"]
+                ?.jsonPrimitive
+                ?.content
+
+            description = obj["synopsis"]
+                ?.jsonPrimitive
+                ?.content
+
+            author = obj["author_name"]
+                ?.jsonPrimitive
+                ?.content
+
+            artist = obj["artist_name"]
+                ?.jsonPrimitive
+                ?.content
+
+            status = when (
+                obj["comic_status"]
+                    ?.jsonPrimitive
+                    ?.content
+            ) {
                 "ONGOING" -> SManga.ONGOING
                 "COMPLETED" -> SManga.COMPLETED
                 "HIATUS" -> SManga.ON_HIATUS
                 "DROPPED" -> SManga.CANCELLED
                 else -> SManga.UNKNOWN
             }
-            genre = obj["genres"]?.jsonArray
-                ?.joinToString { it.jsonObject["name"]!!.jsonPrimitive.content }
+
+            genre = obj["genres"]
+                ?.jsonArray
+                ?.mapNotNull { genre ->
+                    genre.jsonObject["name"]
+                        ?.jsonPrimitive
+                        ?.content
+                }
+                ?.joinToString()
         }
     }
 
@@ -125,57 +222,120 @@ abstract class SoulScansBeta : HttpSource() {
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val obj = response.parseAs<JsonObject>()
-        val slug = requireNotNull(obj["slug"]) { "Missing 'slug'" }.jsonPrimitive.content
-        val units = obj["units"]?.jsonArray ?: return emptyList()
 
-        return units.map { unit ->
-            val u = unit.jsonObject
-            SChapter.create().apply {
-                name = requireNotNull(u["title"]) { "Missing 'title'" }.jsonPrimitive.content
-                url = "$slug/chapter/${requireNotNull(u["slug"]) { "Missing 'unit slug'" }.jsonPrimitive.content}"
-                chapter_number = requireNotNull(u["number"]) { "Missing 'number'" }.jsonPrimitive.content.toFloatOrNull() ?: -1f
-                date_upload = try {
-                    LocalDateTime.parse(
-                        requireNotNull(u["created_at"]) { "Missing 'created_at'" }.jsonPrimitive.content,
-                        dateFormatter,
-                    ).atZone(ZoneId.of("UTC")).toInstant().toEpochMilli()
-                } catch (e: Exception) {
-                    0L
+        val slug = requireNotNull(obj["slug"]) {
+            "Missing 'slug'"
+        }.jsonPrimitive.content
+
+        val units = obj["units"]
+            ?.jsonArray
+            ?: return emptyList()
+
+        return units
+            .map { unit ->
+                val chapter = unit.jsonObject
+
+                SChapter.create().apply {
+                    name = requireNotNull(chapter["title"]) {
+                        "Missing 'title'"
+                    }.jsonPrimitive.content
+
+                    url = "$slug/chapter/${
+                        requireNotNull(chapter["slug"]) {
+                            "Missing 'unit slug'"
+                        }.jsonPrimitive.content
+                    }"
+
+                    chapter_number = requireNotNull(chapter["number"]) {
+                        "Missing 'number'"
+                    }.jsonPrimitive.content
+                        .toFloatOrNull()
+                        ?: -1f
+
+                    date_upload = parseDate(
+                        chapter["created_at"]
+                            ?.jsonPrimitive
+                            ?.content,
+                    )
                 }
             }
-        }.sortedByDescending { it.chapter_number }
+            .sortedByDescending { it.chapter_number }
     }
 
     // ==================== PAGES ====================
 
     override fun pageListParse(response: Response): List<Page> {
         val obj = response.parseAs<JsonObject>()
-        val chapter = requireNotNull(obj["chapter"]) { "Missing 'chapter'" }.jsonObject
-        val pages = requireNotNull(chapter["pages"]) { "Missing 'pages'" }.jsonArray
+
+        val chapter = requireNotNull(obj["chapter"]) {
+            "Missing 'chapter'"
+        }.jsonObject
+
+        val pages = requireNotNull(chapter["pages"]) {
+            "Missing 'pages'"
+        }.jsonArray
 
         return pages.mapIndexed { index, page ->
-            val p = page.jsonObject
+            val pageObject = page.jsonObject
+
             Page(
                 index = index,
-                imageUrl = requireNotNull(p["image_url"]) { "Missing 'image_url'" }.jsonPrimitive.content,
+                imageUrl = requireNotNull(
+                    pageObject["image_url"],
+                ) {
+                    "Missing 'image_url'"
+                }.jsonPrimitive.content,
             )
         }
     }
 
-    override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
+    override fun imageUrlParse(response: Response): String =
+        throw UnsupportedOperationException()
 
     // ==================== HELPERS ====================
 
-    private fun parseMangaFromList(obj: JsonObject): SManga = SManga.create().apply {
-        title = requireNotNull(obj["title"]) { "Missing 'title'" }.jsonPrimitive.content
-        url = requireNotNull(obj["slug"]) { "Missing 'slug'" }.jsonPrimitive.content
-        thumbnail_url = obj["poster_image_url"]?.jsonPrimitive?.content
-        status = when (obj["comic_status"]?.jsonPrimitive?.content) {
-            "ONGOING" -> SManga.ONGOING
-            "COMPLETED" -> SManga.COMPLETED
-            "HIATUS" -> SManga.ON_HIATUS
-            "DROPPED" -> SManga.CANCELLED
-            else -> SManga.UNKNOWN
+    private fun parseMangaFromList(obj: JsonObject): SManga =
+        SManga.create().apply {
+            title = requireNotNull(obj["title"]) {
+                "Missing 'title'"
+            }.jsonPrimitive.content
+
+            url = requireNotNull(obj["slug"]) {
+                "Missing 'slug'"
+            }.jsonPrimitive.content
+
+            thumbnail_url = obj["poster_image_url"]
+                ?.jsonPrimitive
+                ?.content
+
+            status = when (
+                obj["comic_status"]
+                    ?.jsonPrimitive
+                    ?.content
+            ) {
+                "ONGOING" -> SManga.ONGOING
+                "COMPLETED" -> SManga.COMPLETED
+                "HIATUS" -> SManga.ON_HIATUS
+                "DROPPED" -> SManga.CANCELLED
+                else -> SManga.UNKNOWN
+            }
+        }
+
+    private fun parseDate(value: String?): Long {
+        if (value == null) {
+            return 0L
+        }
+
+        return try {
+            LocalDateTime.parse(
+                value,
+                dateFormatter,
+            )
+                .atZone(ZoneId.of("UTC"))
+                .toInstant()
+                .toEpochMilli()
+        } catch (_: Exception) {
+            0L
         }
     }
 
