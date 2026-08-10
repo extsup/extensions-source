@@ -8,16 +8,18 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import keiyoushi.annotation.Source
-import kotlinx.serialization.json.Json
+import keiyoushi.utils.parseAs
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Request
 import okhttp3.Response
-import uy.kohesive.injekt.injectLazy
-import java.text.SimpleDateFormat
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Source
@@ -29,19 +31,21 @@ abstract class SoulScansBeta : HttpSource() {
 
     private val homeSectionsUrl = "$apiUrl/comic/home-sections"
 
-    private val json: Json by injectLazy()
+    private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
 
-    private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+    // Cache untuk latest updates
+    private var cachedLatestUpdates: List<kotlinx.serialization.json.JsonElement>? = null
+    private var latestPage = 1
 
     // ==================== POPULAR ====================
 
     override fun popularMangaRequest(page: Int): Request = GET("$apiUrl/search?type=COMIC&limit=24&page=$page&sort=views&order=desc")
 
     override fun popularMangaParse(response: Response): MangasPage {
-        val obj = json.parseToJsonElement(response.body.string()).jsonObject
-        val data = obj["data"]!!.jsonArray
-        val totalPages = obj["total_pages"]!!.jsonPrimitive.int
-        val page = obj["page"]!!.jsonPrimitive.int
+        val obj = response.parseAs<JsonObject>()
+        val data = requireNotNull(obj["data"]) { "Missing 'data' field" }.jsonArray
+        val totalPages = requireNotNull(obj["total_pages"]) { "Missing 'total_pages' field" }.jsonPrimitive.int
+        val page = requireNotNull(obj["page"]) { "Missing 'page' field" }.jsonPrimitive.int
 
         val mangas = data.map { parseMangaFromList(it.jsonObject) }
         return MangasPage(mangas, page < totalPages)
@@ -49,19 +53,34 @@ abstract class SoulScansBeta : HttpSource() {
 
     // ==================== LATEST ====================
 
-    override fun latestUpdatesRequest(page: Int): Request = GET("$homeSectionsUrl?updateLimit=${24 * page}&sections=latest_comic_updates")
+    override fun latestUpdatesRequest(page: Int): Request {
+        latestPage = page
+        if (page == 1) {
+            cachedLatestUpdates = null // Hapus cache agar data segar
+        }
+        if (cachedLatestUpdates == null) {
+            return GET("$homeSectionsUrl?updateLimit=216&sections=latest_comic_updates")
+        }
+        // Halaman > 1 tidak perlu request
+        return GET("$homeSectionsUrl?updateLimit=0&sections=latest_comic_updates")
+    }
 
     override fun latestUpdatesParse(response: Response): MangasPage {
-        val obj = json.parseToJsonElement(response.body.string()).jsonObject
-        val updates = obj["latest_comic_updates"]!!.jsonArray
+        if (cachedLatestUpdates == null) {
+            val obj = response.parseAs<JsonObject>()
+            cachedLatestUpdates = requireNotNull(obj["latest_comic_updates"]) { "Missing 'latest_comic_updates' field" }.jsonArray
+        }
 
-        val slice = updates.takeLast(24)
+        val all = cachedLatestUpdates!!
+        val start = (latestPage - 1) * 36
+        val end = minOf(start + 36, all.size)
+        val pageItems = all.subList(start, end)
 
-        val mangas = slice.map { item ->
+        val mangas = pageItems.map { item ->
             val u = item.jsonObject
             SManga.create().apply {
-                title = u["series_title"]!!.jsonPrimitive.content
-                url = u["series_slug"]!!.jsonPrimitive.content
+                title = requireNotNull(u["series_title"]) { "Missing 'series_title'" }.jsonPrimitive.content
+                url = requireNotNull(u["series_slug"]) { "Missing 'series_slug'" }.jsonPrimitive.content
                 thumbnail_url = u["poster_image_url"]?.jsonPrimitive?.content
                 status = when (u["series_status"]?.jsonPrimitive?.content) {
                     "ONGOING" -> SManga.ONGOING
@@ -73,7 +92,8 @@ abstract class SoulScansBeta : HttpSource() {
             }
         }
 
-        return MangasPage(mangas, slice.size == 24)
+        val hasNextPage = end < all.size
+        return MangasPage(mangas, hasNextPage)
     }
 
     // ==================== SEARCH ====================
@@ -87,10 +107,10 @@ abstract class SoulScansBeta : HttpSource() {
     override fun mangaDetailsRequest(manga: SManga): Request = GET("$apiUrl/series/comic/${manga.url}")
 
     override fun mangaDetailsParse(response: Response): SManga {
-        val obj = json.parseToJsonElement(response.body.string()).jsonObject
+        val obj = response.parseAs<JsonObject>()
         return SManga.create().apply {
-            title = obj["title"]!!.jsonPrimitive.content
-            url = obj["slug"]!!.jsonPrimitive.content
+            title = requireNotNull(obj["title"]) { "Missing 'title'" }.jsonPrimitive.content
+            url = requireNotNull(obj["slug"]) { "Missing 'slug'" }.jsonPrimitive.content
             thumbnail_url = obj["poster_image_url"]?.jsonPrimitive?.content
             description = obj["synopsis"]?.jsonPrimitive?.content
             author = obj["author_name"]?.jsonPrimitive?.content
@@ -114,21 +134,26 @@ abstract class SoulScansBeta : HttpSource() {
     override fun chapterListRequest(manga: SManga): Request = GET("$apiUrl/series/comic/${manga.url}")
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        val obj = json.parseToJsonElement(response.body.string()).jsonObject
-        val slug = obj["slug"]!!.jsonPrimitive.content
+        val obj = response.parseAs<JsonObject>()
+        val slug = requireNotNull(obj["slug"]) { "Missing 'slug'" }.jsonPrimitive.content
         val units = obj["units"]?.jsonArray ?: return emptyList()
 
         return units.map { unit ->
             val u = unit.jsonObject
             SChapter.create().apply {
-                name = u["title"]!!.jsonPrimitive.content
-                url = "$slug/chapter/${u["slug"]!!.jsonPrimitive.content}"
-                chapter_number = u["number"]!!.jsonPrimitive.content.toFloatOrNull() ?: -1f
-                date_upload = runCatching {
-                    dateFormat.parse(u["created_at"]!!.jsonPrimitive.content)!!.time
-                }.getOrDefault(0L)
+                name = requireNotNull(u["title"]) { "Missing 'title'" }.jsonPrimitive.content
+                url = "$slug/chapter/${requireNotNull(u["slug"]) { "Missing 'unit slug'" }.jsonPrimitive.content}"
+                chapter_number = requireNotNull(u["number"]) { "Missing 'number'" }.jsonPrimitive.content.toFloatOrNull() ?: -1f
+                date_upload = try {
+                    LocalDateTime.parse(
+                        requireNotNull(u["created_at"]) { "Missing 'created_at'" }.jsonPrimitive.content,
+                        dateFormatter
+                    ).atZone(ZoneId.of("UTC")).toInstant().toEpochMilli()
+                } catch (e: Exception) {
+                    0L
+                }
             }
-        }
+        }.sortedByDescending { it.chapter_number }
     }
 
     override fun getChapterUrl(chapter: SChapter): String = "$baseUrl/comic/${chapter.url}"
@@ -138,14 +163,15 @@ abstract class SoulScansBeta : HttpSource() {
     override fun pageListRequest(chapter: SChapter): Request = GET("$apiUrl/series/comic/${chapter.url}")
 
     override fun pageListParse(response: Response): List<Page> {
-        val obj = json.parseToJsonElement(response.body.string()).jsonObject
-        val pages = obj["chapter"]!!.jsonObject["pages"]!!.jsonArray
+        val obj = response.parseAs<JsonObject>()
+        val chapter = requireNotNull(obj["chapter"]) { "Missing 'chapter'" }.jsonObject
+        val pages = requireNotNull(chapter["pages"]) { "Missing 'pages'" }.jsonArray
 
         return pages.mapIndexed { index, page ->
             val p = page.jsonObject
             Page(
                 index = index,
-                imageUrl = p["image_url"]!!.jsonPrimitive.content,
+                imageUrl = requireNotNull(p["image_url"]) { "Missing 'image_url'" }.jsonPrimitive.content,
             )
         }
     }
@@ -155,8 +181,8 @@ abstract class SoulScansBeta : HttpSource() {
     // ==================== HELPERS ====================
 
     private fun parseMangaFromList(obj: JsonObject): SManga = SManga.create().apply {
-        title = obj["title"]!!.jsonPrimitive.content
-        url = obj["slug"]!!.jsonPrimitive.content
+        title = requireNotNull(obj["title"]) { "Missing 'title'" }.jsonPrimitive.content
+        url = requireNotNull(obj["slug"]) { "Missing 'slug'" }.jsonPrimitive.content
         thumbnail_url = obj["poster_image_url"]?.jsonPrimitive?.content
         status = when (obj["comic_status"]?.jsonPrimitive?.content) {
             "ONGOING" -> SManga.ONGOING
