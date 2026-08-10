@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.extension.id.mgkomikwebbeta
 
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.util.asJsoup
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -14,7 +15,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
-import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.text.SimpleDateFormat
@@ -39,7 +41,7 @@ abstract class MGKomikWebBeta : HttpSource() {
     override fun popularMangaRequest(page: Int): Request = GET("$baseUrl/komik/?order_by=trending&page=$page", headers)
 
     override fun popularMangaParse(response: Response): MangasPage {
-        val document = Jsoup.parse(response.body!!.string())
+        val document = response.asJsoup()
         val mangas = document.select("div.manga-card").map { parseMangaFromElement(it) }
         val hasNext = document.selectFirst("a.page-link:contains(Next)") != null
         return MangasPage(mangas, hasNext)
@@ -63,7 +65,7 @@ abstract class MGKomikWebBeta : HttpSource() {
     }
 
     override fun searchMangaParse(response: Response): MangasPage {
-        val document = Jsoup.parse(response.body!!.string())
+        val document = response.asJsoup()
         val mangas = document.select("a.manga-card").map { element ->
             SManga.create().apply {
                 setUrlWithoutDomain(element.attr("href"))
@@ -79,11 +81,34 @@ abstract class MGKomikWebBeta : HttpSource() {
 
     // ============================== Details ===============================
 
-    override fun mangaDetailsRequest(manga: SManga): Request = GET("$baseUrl${manga.url}", headers)
 
     override fun mangaDetailsParse(response: Response): SManga {
-        val document = Jsoup.parse(response.body!!.string())
-        return parseMangaDetails(document)
+        val document = response.asJsoup()
+        return SManga.create().apply {
+            title = document.selectFirst("h1.manga-title")?.text().orEmpty()
+            thumbnail_url = document.selectFirst("meta[property='og:image']")?.attr("content")
+            description = document.selectFirst("div.manga-description")?.text()
+
+            val statusBadge = document.selectFirst("div.meta-item.status-badge")?.text().orEmpty()
+            status = when {
+                statusBadge.contains("ongoing", true) -> SManga.ONGOING
+                statusBadge.contains("completed", true) -> SManga.COMPLETED
+                statusBadge.contains("hiatus", true) -> SManga.ON_HIATUS
+                else -> SManga.UNKNOWN
+            }
+
+            val metaItems = document.select("div.meta-item:not(.status-badge)").map { it.text().trim() }
+
+
+            val typeKeywords = setOf("manga", "manhwa", "manhua", "webtoon")
+            val types = metaItems.filter { it.lowercase() in typeKeywords }
+
+            val genresList = document.select("div.genre-list a.genre-tag")
+                .map { it.text().trim() }
+                .filterNot { it.lowercase() in typeKeywords }
+
+            genre = (genresList + types).joinToString(", ")
+        }
     }
 
     // ============================== Chapters ==============================
@@ -91,16 +116,15 @@ abstract class MGKomikWebBeta : HttpSource() {
     override fun chapterListRequest(manga: SManga): Request = GET("$baseUrl${manga.url}", headers)
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        val document = Jsoup.parse(response.body!!.string())
+        val document = response.asJsoup()
         return parseChapterList(document)
     }
 
     // ============================== Pages =================================
 
-    override fun pageListRequest(chapter: SChapter): Request = GET("$baseUrl${chapter.url}", headers)
 
     override fun pageListParse(response: Response): List<Page> {
-        val document = Jsoup.parse(response.body!!.string())
+        val document = response.asJsoup()
         return document.select("img[data-page]").mapIndexed { index, img ->
             Page(
                 index = index,
@@ -122,33 +146,6 @@ abstract class MGKomikWebBeta : HttpSource() {
         }
     }
 
-    private fun parseMangaDetails(document: Document): SManga = SManga.create().apply {
-        title = document.selectFirst("h1.manga-title")?.text().orEmpty()
-        thumbnail_url = document.selectFirst("meta[property='og:image']")?.attr("content")
-        description = document.selectFirst("div.manga-description")?.text()
-
-        val statusBadge = document.selectFirst("div.meta-item.status-badge")?.text().orEmpty()
-        status = when {
-            statusBadge.contains("ongoing", true) -> SManga.ONGOING
-            statusBadge.contains("completed", true) -> SManga.COMPLETED
-            statusBadge.contains("hiatus", true) -> SManga.ON_HIATUS
-            else -> SManga.UNKNOWN
-        }
-
-        val metaItems = document.select("div.meta-item:not(.status-badge)").map { it.text().trim() }
-
-        author = metaItems.firstOrNull { it.contains("Author", true) }
-            ?.substringAfter(":")?.trim()
-
-        val typeKeywords = setOf("manga", "manhwa", "manhua", "webtoon")
-        val types = metaItems.filter { it.lowercase() in typeKeywords }
-
-        val genresList = document.select("div.genre-list a.genre-tag")
-            .map { it.text().trim() }
-            .filterNot { it.lowercase() in typeKeywords }
-
-        genre = (genresList + types).joinToString(", ")
-    }
 
     private fun parseChapterList(document: Document): List<SChapter> = document.select("li.chapter-list-item").map { element ->
         val anchor = element.selectFirst("a.chapter-link")!!
@@ -166,7 +163,7 @@ abstract class MGKomikWebBeta : HttpSource() {
             val (amountStr, unit) = match.destructured
             val amount = amountStr.toLongOrNull() ?: return@let
 
-            val multiplier = when (unit.lowercase()) {
+            val multiplier = when (unit.lowercase().trimEnd('s')) {
                 "second" -> 1_000L
                 "minute" -> 60_000L
                 "hour" -> 3_600_000L
@@ -174,7 +171,7 @@ abstract class MGKomikWebBeta : HttpSource() {
                 "week" -> 604_800_000L
                 "month" -> 2_592_000_000L
                 "year" -> 31_536_000_000L
-                else -> 0L
+                else -> return@let
             }
             return System.currentTimeMillis() - (amount * multiplier)
         }
