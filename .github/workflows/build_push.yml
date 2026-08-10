@@ -3,7 +3,6 @@ name: CI
 on:
   push:
     branches:
-      - main
       - ori
     paths:
       - '**'
@@ -13,7 +12,8 @@ on:
       - '.github/workflows/build_push.yml'
   workflow_dispatch:
 
-permissions: {}
+permissions:
+  contents: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -41,8 +41,7 @@ jobs:
       - name: Get last successful CI commit
         uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5.0.1
         with:
-          fallback-sha: 4b825dc642cb6eb9a060e54bf8d69288fbee4904
-          main-branch-name: ${{ github.ref_name }} # empty tree
+          fallback-sha: 4b825dc642cb6eb9a060e54bf8d69288fbee4904 # empty tree
 
       - id: generate-matrices
         name: Create output matrices
@@ -77,6 +76,22 @@ jobs:
       - name: Prepare signing key
         run: |
           echo ${{ secrets.SIGNING_KEY }} | base64 -d > signingkey.jks
+
+      - name: Run spotlessApply and Auto-commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./gradlew spotlessApply
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain)" ]; then
+            git add .
+            git commit -m "style: auto-apply spotless formatting [skip ci]"
+            git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
+            git push origin ori
+          else
+            echo "No formatting changes to commit."
+          fi
 
       - name: Build extensions (${{ matrix.chunk.number }})
         env:
@@ -114,9 +129,6 @@ jobs:
       needs.prepare.outputs.delete != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      # main → repo, ori → ori
-      REPO_BRANCH: ${{ github.ref_name == 'main' && 'repo' || github.ref_name }}
     steps:
       - name: Download APK artifacts
         if: needs.build.result == 'success'
@@ -127,7 +139,7 @@ jobs:
       - name: Checkout main branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.ref_name }}
+          ref: ori
           path: main
           persist-credentials: false
 
@@ -136,7 +148,7 @@ jobs:
         with:
           repository: extsup/extensions
           token: ${{ secrets.BOT_PAT }}
-          ref: ${{ env.REPO_BRANCH }}
+          ref: repo
           path: repo
           persist-credentials: true
 
@@ -154,9 +166,9 @@ jobs:
             git add .
             git commit -m "Update extensions repo"
             git push
-            curl https://purge.jsdelivr.net/gh/extsup/extensions@${{ env.REPO_BRANCH }}/index.min.json
-            curl https://purge.jsdelivr.net/gh/extsup/extensions@${{ env.REPO_BRANCH }}/index.json
-            curl https://purge.jsdelivr.net/gh/extsup/extensions@${{ env.REPO_BRANCH }}/index.pb
+            curl https://purge.jsdelivr.net/gh/extsup/extensions@repo/index.min.json
+            curl https://purge.jsdelivr.net/gh/extsup/extensions@repo/index.json
+            curl https://purge.jsdelivr.net/gh/extsup/extensions@repo/index.pb
           else
             echo "No changes to commit"
           fi
