@@ -41,10 +41,9 @@ abstract class SoulScansBeta : HttpSource() {
 
     // ==================== POPULAR ====================
 
-    override fun popularMangaRequest(page: Int): Request =
-        GET(
-            "$apiUrl/search?type=COMIC&limit=24&page=$page&sort=views&order=desc",
-        )
+    override fun popularMangaRequest(page: Int): Request = GET(
+        "$apiUrl/search?type=COMIC&limit=24&page=$page&sort=views&order=desc",
+    )
 
     override fun popularMangaParse(response: Response): MangasPage {
         val obj = response.parseAs<JsonObject>()
@@ -157,13 +156,11 @@ abstract class SoulScansBeta : HttpSource() {
         page: Int,
         query: String,
         filters: FilterList,
-    ): Request =
-        GET(
-            "$apiUrl/search?type=COMIC&limit=24&page=$page&sort=latest&order=desc&q=$query",
-        )
+    ): Request = GET(
+        "$apiUrl/search?type=COMIC&limit=24&page=$page&sort=latest&order=desc&q=$query",
+    )
 
-    override fun searchMangaParse(response: Response): MangasPage =
-        popularMangaParse(response)
+    override fun searchMangaParse(response: Response): MangasPage = popularMangaParse(response)
 
     // ==================== DETAIL ====================
 
@@ -289,37 +286,35 @@ abstract class SoulScansBeta : HttpSource() {
         }
     }
 
-    override fun imageUrlParse(response: Response): String =
-        throw UnsupportedOperationException()
+    override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 
     // ==================== HELPERS ====================
 
-    private fun parseMangaFromList(obj: JsonObject): SManga =
-        SManga.create().apply {
-            title = requireNotNull(obj["title"]) {
-                "Missing 'title'"
-            }.jsonPrimitive.content
+    private fun parseMangaFromList(obj: JsonObject): SManga = SManga.create().apply {
+        title = requireNotNull(obj["title"]) {
+            "Missing 'title'"
+        }.jsonPrimitive.content
 
-            url = requireNotNull(obj["slug"]) {
-                "Missing 'slug'"
-            }.jsonPrimitive.content
+        url = requireNotNull(obj["slug"]) {
+            "Missing 'slug'"
+        }.jsonPrimitive.content
 
-            thumbnail_url = obj["poster_image_url"]
+        thumbnail_url = obj["poster_image_url"]
+            ?.jsonPrimitive
+            ?.content
+
+        status = when (
+            obj["comic_status"]
                 ?.jsonPrimitive
                 ?.content
-
-            status = when (
-                obj["comic_status"]
-                    ?.jsonPrimitive
-                    ?.content
-            ) {
-                "ONGOING" -> SManga.ONGOING
-                "COMPLETED" -> SManga.COMPLETED
-                "HIATUS" -> SManga.ON_HIATUS
-                "DROPPED" -> SManga.CANCELLED
-                else -> SManga.UNKNOWN
-            }
+        ) {
+            "ONGOING" -> SManga.ONGOING
+            "COMPLETED" -> SManga.COMPLETED
+            "HIATUS" -> SManga.ON_HIATUS
+            "DROPPED" -> SManga.CANCELLED
+            else -> SManga.UNKNOWN
         }
+    }
 
     private fun parseDate(value: String?): Long {
         if (value == null) {
