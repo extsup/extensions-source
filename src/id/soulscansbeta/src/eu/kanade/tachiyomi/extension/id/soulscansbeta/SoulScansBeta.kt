@@ -12,7 +12,6 @@ import keiyoushi.utils.parseAs
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Request
@@ -147,7 +146,7 @@ abstract class SoulScansBeta : HttpSource() {
                 date_upload = try {
                     LocalDateTime.parse(
                         requireNotNull(u["created_at"]) { "Missing 'created_at'" }.jsonPrimitive.content,
-                        dateFormatter
+                        dateFormatter,
                     ).atZone(ZoneId.of("UTC")).toInstant().toEpochMilli()
                 } catch (e: Exception) {
                     0L
