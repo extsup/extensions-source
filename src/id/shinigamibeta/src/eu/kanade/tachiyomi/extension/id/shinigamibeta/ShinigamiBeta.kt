@@ -29,9 +29,7 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Source
-abstract class ShinigamiBeta :
-    HttpSource(),
-    ConfigurableSource {
+abstract class ShinigamiBeta : HttpSource(), ConfigurableSource {
 
     private val apiUrl = "https://api.shngm.io"
 
@@ -45,49 +43,49 @@ abstract class ShinigamiBeta :
     private val resizeUrl: String
         get() = preferences.getString(PREF_RESIZE_URL_KEY, "")!!
 
-    private val apiHeaders: Headers by lazy { apiHeadersBuilder().build() }
-
     override val client = network.client.newBuilder()
         .addInterceptor { chain ->
             val req = chain.request()
-            val headers = req.headers.newBuilder()
-                .removeAll("X-Requested-With")
-                .build()
-            chain.proceed(req.newBuilder().headers(headers).build())
+            chain.proceed(
+                req.newBuilder()
+                    .headers(req.headers.newBuilder().removeAll("X-Requested-With").build())
+                    .build()
+            )
         }
         .rateLimit(3)
         .build()
 
     override fun headersBuilder(): Headers.Builder = super.headersBuilder()
-        .add("X-Requested-With", randomString((10..20).random()))
+        .add("X-Requested-With", ('a'..'z').shuffled().take((10..20).random()).joinToString(""))
 
-    private fun randomString(length: Int) = buildString {
-        val pool = ('a'..'z') + ('A'..'Z')
-        repeat(length) { append(pool.random()) }
+    private val apiHeaders: Headers by lazy {
+        headersBuilder()
+            .add("Accept", "application/json")
+            .add("DNT", "1")
+            .add("Origin", baseUrl)
+            .add("Sec-GPC", "1")
+            .build()
     }
-
-    private fun apiHeadersBuilder(): Headers.Builder = headersBuilder()
-        .add("Accept", "application/json")
-        .add("DNT", "1")
-        .add("Origin", baseUrl)
-        .add("Sec-GPC", "1")
 
     // ============================== Popular ===============================
 
-    override fun popularMangaRequest(page: Int): Request {
-        val url = "$apiUrl/v1/manga/list".toHttpUrl().newBuilder()
+    private fun mangaListRequest(page: Int, sort: String) = GET(
+        "$apiUrl/v1/manga/list".toHttpUrl().newBuilder()
             .addQueryParameter("page", page.toString())
             .addQueryParameter("page_size", "30")
-            .addQueryParameter("sort", "popularity")
-            .build()
-        return GET(url, apiHeaders)
-    }
+            .addQueryParameter("sort", sort)
+            .build(),
+        apiHeaders,
+    )
+
+    override fun popularMangaRequest(page: Int) = mangaListRequest(page, "popularity")
+
+    override fun latestUpdatesRequest(page: Int) = mangaListRequest(page, "latest")
 
     override fun popularMangaParse(response: Response): MangasPage {
         val root = response.parseAs<JsonObject>()
-        val data = root["data"]!!.jsonArray
         val meta = root["meta"]!!.jsonObject
-        val mangas = data.mapNotNull { el ->
+        val mangas = root["data"]!!.jsonArray.mapNotNull { el ->
             val obj = el.jsonObject
             val genres = obj["taxonomy"]?.jsonObject
                 ?.get("Genre")?.jsonArray
@@ -102,22 +100,10 @@ abstract class ShinigamiBeta :
         }
         val page = meta["page"]?.jsonPrimitive?.intOrNull ?: 1
         val totalPage = meta["total_page"]?.jsonPrimitive?.intOrNull
-        val hasNext = totalPage?.let { page < it } ?: false
-        return MangasPage(mangas, hasNext)
+        return MangasPage(mangas, totalPage?.let { page < it } ?: false)
     }
 
-    // ============================== Latest ================================
-
-    override fun latestUpdatesRequest(page: Int): Request {
-        val url = "$apiUrl/v1/manga/list".toHttpUrl().newBuilder()
-            .addQueryParameter("page", page.toString())
-            .addQueryParameter("page_size", "30")
-            .addQueryParameter("sort", "latest")
-            .build()
-        return GET(url, apiHeaders)
-    }
-
-    override fun latestUpdatesParse(response: Response): MangasPage = popularMangaParse(response)
+    override fun latestUpdatesParse(response: Response) = popularMangaParse(response)
 
     // ============================== Search ================================
 
@@ -129,24 +115,21 @@ abstract class ShinigamiBeta :
         return GET(url.build(), apiHeaders)
     }
 
-    override fun searchMangaParse(response: Response): MangasPage = popularMangaParse(response)
+    override fun searchMangaParse(response: Response) = popularMangaParse(response)
 
-    override fun getFilterList(): FilterList = FilterList()
+    override fun getFilterList() = FilterList()
 
     // ============================== Details ===============================
 
-    override fun getMangaUrl(manga: SManga): String = "$baseUrl/series/${manga.url}"
+    override fun getMangaUrl(manga: SManga) = "$baseUrl/series/${manga.url}"
 
     override fun mangaDetailsRequest(manga: SManga): Request {
-        if (manga.url.startsWith("/series/")) {
-            throw Exception("Migrate dari $name ke $name (ekstensi yang sama)")
-        }
+        if (manga.url.startsWith("/series/")) throw Exception("Migrate dari $name ke $name (ekstensi yang sama)")
         return GET("$apiUrl/v1/manga/detail/${manga.url}", apiHeaders)
     }
 
     override fun mangaDetailsParse(response: Response): SManga {
-        val root = response.parseAs<JsonObject>()
-        val dto = root["data"]!!.jsonObject
+        val dto = response.parseAs<JsonObject>()["data"]!!.jsonObject
         val taxonomy = dto["taxonomy"]?.jsonObject ?: JsonObject(emptyMap())
 
         fun taxNames(key: String) = taxonomy[key]?.jsonArray
@@ -176,73 +159,62 @@ abstract class ShinigamiBeta :
                 )
                 if (!altTitle.isNullOrBlank()) append("\n\nAlt title: $altTitle")
             }
-            val genres = taxNames("Genre")
-            val type = taxNames("Format")
-            genre = listOf(genres, type).filter { it.isNotBlank() }.joinToString()
+            genre = listOf(taxNames("Genre"), taxNames("Format"))
+                .filter { it.isNotBlank() }
+                .joinToString()
         }
     }
 
     // ============================== Chapters ==============================
 
-    override fun chapterListRequest(manga: SManga): Request = GET("$apiUrl/v1/chapter/${manga.url}/list?page_size=3000", apiHeaders)
+    override fun chapterListRequest(manga: SManga) =
+        GET("$apiUrl/v1/chapter/${manga.url}/list?page_size=3000", apiHeaders)
 
-    override fun chapterListParse(response: Response): List<SChapter> {
-        val root = response.parseAs<JsonObject>()
-        val data = root["data"]!!.jsonArray
-        return data.map { el ->
+    override fun chapterListParse(response: Response): List<SChapter> =
+        response.parseAs<JsonObject>()["data"]!!.jsonArray.map { el ->
             val obj = el.jsonObject
             SChapter.create().apply {
                 date_upload = dateFormat.tryParse(obj["release_date"]?.jsonPrimitive?.content)
                 val num = obj["chapter_number"]?.jsonPrimitive?.doubleOrNull
                     ?.toString()?.replace(".0", "") ?: ""
                 val title = obj["chapter_title"]?.jsonPrimitive?.content
-                name = "Chapter $num ${title ?: ""}".trim()
+                name = "Chapter $num${if (!title.isNullOrBlank()) " $title" else ""}".trim()
                 url = obj["chapter_id"]!!.jsonPrimitive.content
             }
         }
-    }
 
     // ============================== Pages =================================
 
     override fun pageListRequest(chapter: SChapter): Request {
-        if (chapter.url.startsWith("/series/")) {
-            throw Exception("Migrate dari $name ke $name (ekstensi yang sama)")
-        }
+        if (chapter.url.startsWith("/series/")) throw Exception("Migrate dari $name ke $name (ekstensi yang sama)")
         return GET("$apiUrl/v1/chapter/detail/${chapter.url}", apiHeaders)
     }
 
     override fun pageListParse(response: Response): List<Page> {
-        val root = response.parseAs<JsonObject>()
-        val data = root["data"]!!.jsonObject
+        val data = response.parseAs<JsonObject>()["data"]!!.jsonObject
         val baseImgUrl = data["base_url"]!!.jsonPrimitive.content
         val chapter = data["chapter"]!!.jsonObject
         val path = chapter["path"]!!.jsonPrimitive.content
-        val pages = chapter["data"]!!.jsonArray
-
-        return pages
+        return chapter["data"]!!.jsonArray
             .map { it.jsonPrimitive.content }
-            .filter { imageName ->
-                val prefix = imageName.split("-").firstOrNull()?.toIntOrNull() ?: 0
-                prefix !in 90..999
-            }
+            .filter { (it.split("-").firstOrNull()?.toIntOrNull() ?: 0) !in 90..999 }
             .mapIndexed { index, imageName ->
                 val originalUrl = "$baseImgUrl$path$imageName"
-                val finalUrl = resizeUrl.takeIf { it.isNotBlank() }?.let { "$it$originalUrl" } ?: originalUrl
-                Page(index = index, imageUrl = finalUrl)
+                Page(index, imageUrl = resizeUrl.takeIf { it.isNotBlank() }?.let { "$it$originalUrl" } ?: originalUrl)
             }
     }
 
-    override fun imageUrlParse(response: Response): String = ""
+    override fun imageUrlParse(response: Response) = ""
 
-    override fun imageRequest(page: Page): Request {
-        val newHeaders = headersBuilder()
+    override fun imageRequest(page: Page) = GET(
+        page.imageUrl!!,
+        headersBuilder()
             .add("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
             .add("DNT", "1")
             .add("Referer", "$baseUrl/")
             .add("Sec-GPC", "1")
-            .build()
-        return GET(page.imageUrl!!, newHeaders)
-    }
+            .build(),
+    )
 
     // ============================== Preferences ===========================
 
@@ -273,28 +245,14 @@ abstract class ShinigamiBeta :
         }.also(screen::addPreference)
     }
 
-    // ============================== Companion =============================
-
     companion object {
         private val BLACKLISTED_GENRES = setOf(
-            "josei-genre",
-            "smut",
-            "gender-bender",
-            "boys-love",
-            "bl",
-            "yaoi",
-            "yuri",
-            "girls-love",
-            "shounen-ai",
-            "shoujo-ai",
-            "shoujo",
-            "sports",
+            "josei-genre", "smut", "gender-bender", "boys-love", "bl",
+            "yaoi", "yuri", "girls-love", "shounen-ai", "shoujo-ai", "shoujo", "sports",
         )
-
         private const val PREF_DOMAIN_KEY = "pref_domain"
         private const val PREF_DOMAIN_DEFAULT = "https://11.shinigami.asia"
         private const val PREF_RESIZE_URL_KEY = "pref_resize_url"
-
         val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ENGLISH)
     }
 }
