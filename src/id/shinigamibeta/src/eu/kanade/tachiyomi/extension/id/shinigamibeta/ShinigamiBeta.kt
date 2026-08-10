@@ -29,7 +29,9 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Source
-abstract class ShinigamiBeta : HttpSource(), ConfigurableSource {
+abstract class ShinigamiBeta :
+    HttpSource(),
+    ConfigurableSource {
 
     private val apiUrl = "https://api.shngm.io"
 
@@ -49,7 +51,7 @@ abstract class ShinigamiBeta : HttpSource(), ConfigurableSource {
             chain.proceed(
                 req.newBuilder()
                     .headers(req.headers.newBuilder().removeAll("X-Requested-With").build())
-                    .build()
+                    .build(),
             )
         }
         .rateLimit(3)
@@ -167,21 +169,19 @@ abstract class ShinigamiBeta : HttpSource(), ConfigurableSource {
 
     // ============================== Chapters ==============================
 
-    override fun chapterListRequest(manga: SManga) =
-        GET("$apiUrl/v1/chapter/${manga.url}/list?page_size=3000", apiHeaders)
+    override fun chapterListRequest(manga: SManga) = GET("$apiUrl/v1/chapter/${manga.url}/list?page_size=3000", apiHeaders)
 
-    override fun chapterListParse(response: Response): List<SChapter> =
-        response.parseAs<JsonObject>()["data"]!!.jsonArray.map { el ->
-            val obj = el.jsonObject
-            SChapter.create().apply {
-                date_upload = dateFormat.tryParse(obj["release_date"]?.jsonPrimitive?.content)
-                val num = obj["chapter_number"]?.jsonPrimitive?.doubleOrNull
-                    ?.toString()?.replace(".0", "") ?: ""
-                val title = obj["chapter_title"]?.jsonPrimitive?.content
-                name = "Chapter $num${if (!title.isNullOrBlank()) " $title" else ""}".trim()
-                url = obj["chapter_id"]!!.jsonPrimitive.content
-            }
+    override fun chapterListParse(response: Response): List<SChapter> = response.parseAs<JsonObject>()["data"]!!.jsonArray.map { el ->
+        val obj = el.jsonObject
+        SChapter.create().apply {
+            date_upload = dateFormat.tryParse(obj["release_date"]?.jsonPrimitive?.content)
+            val num = obj["chapter_number"]?.jsonPrimitive?.doubleOrNull
+                ?.toString()?.replace(".0", "") ?: ""
+            val title = obj["chapter_title"]?.jsonPrimitive?.content
+            name = "Chapter $num${if (!title.isNullOrBlank()) " $title" else ""}".trim()
+            url = obj["chapter_id"]!!.jsonPrimitive.content
         }
+    }
 
     // ============================== Pages =================================
 
