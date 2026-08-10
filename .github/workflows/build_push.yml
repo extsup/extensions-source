@@ -146,7 +146,7 @@ jobs:
         with:
           repository: extsup/extensions
           token: ${{ secrets.BOT_PAT }}
-          ref: repo
+          ref: ori
           path: repo
           persist-credentials: true
 
@@ -164,9 +164,9 @@ jobs:
             git add .
             git commit -m "Update extensions repo"
             git push
-            curl https://purge.jsdelivr.net/gh/extsup/extensions@repo/index.min.json
-            curl https://purge.jsdelivr.net/gh/extsup/extensions@repo/index.json
-            curl https://purge.jsdelivr.net/gh/extsup/extensions@repo/index.pb
+            curl https://purge.jsdelivr.net/gh/extsup/extensions@ori/index.min.json
+            curl https://purge.jsdelivr.net/gh/extsup/extensions@ori/index.json
+            curl https://purge.jsdelivr.net/gh/extsup/extensions@ori/index.pb
           else
             echo "No changes to commit"
           fi
