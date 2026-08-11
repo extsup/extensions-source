@@ -98,13 +98,14 @@ abstract class Hwago : KeiSource() {
                 author = doc.select("span.text-xs:contains(Author) ~ span").firstOrNull()?.text()?.trim()
                 artist = doc.select("span.text-xs:contains(Artist) ~ span").firstOrNull()?.text()?.trim()
                 val type = doc.selectFirst("span.uppercase.text-primary-400")?.text()?.trim()
+                    ?.let { it.lowercase().replaceFirstChar { c -> c.uppercase() } }
                 genre = buildList {
-                    if (!type.isNullOrBlank()) add(type)
                     addAll(
                         doc.select("a[href^='/browse']")
                             .filter { it.attr("href").contains("genre=") }
                             .map { it.text().trim() },
                     )
+                    if (!type.isNullOrBlank()) add(type)
                 }.joinToString()
             }
         } else {
