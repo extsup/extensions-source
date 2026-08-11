@@ -11,6 +11,7 @@ import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.parseAs
+import kotlinx.serialization.json.JsonElement
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -59,7 +60,7 @@ abstract class Hwago : KeiSource() {
         val path = url.encodedPath
         if (!path.startsWith("/comic/")) return null
         return SManga.create().apply {
-            this.url = "/comic/${path.removePrefix("/comic/").trimEnd('/')}"
+            this.url = "/comic/${path.removePrefix("/comic/").trimEnd('/') }"
         }
     }
 
@@ -91,7 +92,7 @@ abstract class Hwago : KeiSource() {
                     "hiatus" -> SManga.ON_HIATUS
                     else -> SManga.UNKNOWN
                 }
-                genre = doc.select("a[href^='/browse?genre=']").joinToString { it.text().trim() }
+                genre = doc.select("a[href^='/browse?genre='").joinToString { it.text().trim() }
                 author = doc.selectFirst(".j87549d span:last-child")?.text()?.trim()
                 artist = doc.selectFirst(".ja5cc span:last-child")?.text()?.trim()
             }
@@ -127,7 +128,7 @@ abstract class Hwago : KeiSource() {
 
     // ============================== Filters ==============================
 
-    override fun getFilterList(data: Nothing?) = FilterList(
+    override fun getFilterList(data: JsonElement?) = FilterList(
         SortFilter(),
         StatusFilter(),
         TypeFilter(),
