@@ -82,7 +82,7 @@ abstract class Hwago : KeiSource() {
             SManga.create().apply {
                 url = manga.url
                 title = doc.selectFirst("h1")?.text()?.trim() ?: ""
-                thumbnail_url = doc.selectFirst("img[src*='imgsvr.my.id'][src*='/cover_'][width]")?.absUrl("src")
+                thumbnail_url = doc.selectFirst("img[src*='imgsvr.my.id'][src*='cover_']")?.absUrl("src")
                 description = doc.selectFirst("div[data-sr]")?.attr("data-sr")?.let {
                     runCatching { String(java.util.Base64.getDecoder().decode(it)) }.getOrNull()
                 }
@@ -100,7 +100,11 @@ abstract class Hwago : KeiSource() {
                 val type = doc.selectFirst("span.uppercase.text-primary-400")?.text()?.trim()
                 genre = buildList {
                     if (!type.isNullOrBlank()) add(type)
-                    addAll(doc.select("a[href*='genre=']").map { it.text().trim() })
+                    addAll(
+                    doc.select("a[href^='/browse']")
+                        .filter { it.attr("href").contains("genre=") }
+                        .map { it.text().trim() }
+                )
                 }.joinToString()
             }
         } else {
