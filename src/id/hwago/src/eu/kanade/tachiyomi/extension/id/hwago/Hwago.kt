@@ -101,10 +101,10 @@ abstract class Hwago : KeiSource() {
                 genre = buildList {
                     if (!type.isNullOrBlank()) add(type)
                     addAll(
-                    doc.select("a[href^='/browse']")
-                        .filter { it.attr("href").contains("genre=") }
-                        .map { it.text().trim() }
-                )
+                        doc.select("a[href^='/browse']")
+                            .filter { it.attr("href").contains("genre=") }
+                            .map { it.text().trim() },
+                    )
                 }.joinToString()
             }
         } else {
