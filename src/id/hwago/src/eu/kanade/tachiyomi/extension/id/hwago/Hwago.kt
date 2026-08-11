@@ -83,11 +83,11 @@ abstract class Hwago : KeiSource() {
                 url = manga.url
                 title = doc.selectFirst("h1")?.text()?.trim() ?: ""
                 thumbnail_url = doc.selectFirst("img[src*='imgsvr.my.id'][src*='/cover_'][width]")?.absUrl("src")
-                description = doc.selectFirst("[data-sr]")?.attr("data-sr")?.let {
+                description = doc.select("[data-sr]").firstOrNull()?.attr("data-sr")?.let {
                     runCatching { String(java.util.Base64.getDecoder().decode(it)) }.getOrNull()
                 }
                 status = when (
-                    doc.selectFirst("span.capitalize.text-green-400, span.capitalize.text-red-400, span.capitalize.text-yellow-400")
+                    doc.selectFirst("span.capitalize.text-green-400, span.capitalize.text-red-400, span.capitalize.text-yellow-400, span.capitalize.text-blue-400")
                         ?.text()?.lowercase()?.trim()
                 ) {
                     "ongoing" -> SManga.ONGOING
