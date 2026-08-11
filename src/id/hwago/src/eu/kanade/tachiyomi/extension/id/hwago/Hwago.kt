@@ -100,7 +100,7 @@ abstract class Hwago : KeiSource() {
                 val type = doc.selectFirst("span.uppercase.text-primary-400")?.text()?.trim()
                 genre = buildList {
                     if (!type.isNullOrBlank()) add(type)
-                    addAll(doc.select("a[href*="genre="]").map { it.text().trim() })
+                    addAll(doc.select("a[href*='genre=']").map { it.text().trim() })
                 }.joinToString()
             }
         } else {
