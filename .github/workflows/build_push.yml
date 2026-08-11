@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches:
-      - ori
+      - main
     paths:
       - '**'
       - '!**.md'
@@ -12,8 +12,7 @@ on:
       - '.github/workflows/build_push.yml'
   workflow_dispatch:
 
-permissions:
-  contents: write
+permissions: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -77,22 +76,6 @@ jobs:
         run: |
           echo ${{ secrets.SIGNING_KEY }} | base64 -d > signingkey.jks
 
-      - name: Run spotlessApply and Auto-commit
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          ./gradlew spotlessApply
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if [ -n "$(git status --porcelain)" ]; then
-            git add .
-            git commit -m "style: auto-apply spotless formatting [skip ci]"
-            git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
-            git push origin ori
-          else
-            echo "No formatting changes to commit."
-          fi
-
       - name: Build extensions (${{ matrix.chunk.number }})
         env:
           MODULES: ${{ join(matrix.chunk.modules, ' ') }}
@@ -120,12 +103,14 @@ jobs:
   publish:
     name: Publish extension repo
     needs: [prepare, build]
+    # Run whenever there's anything to publish, new/changed builds OR only deletions
     if: >-
       always() &&
       github.repository == 'extsup/extensions-source' &&
       needs.prepare.result == 'success' &&
       needs.build.result != 'failure' &&
-      needs.build.result != 'cancelled'
+      needs.build.result != 'cancelled' &&
+      needs.prepare.outputs.delete != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -138,7 +123,7 @@ jobs:
       - name: Checkout main branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ori
+          ref: main
           path: main
           persist-credentials: false
 
@@ -147,14 +132,13 @@ jobs:
         with:
           repository: extsup/extensions
           token: ${{ secrets.BOT_PAT }}
-          ref: ori
+          ref: repo
           path: repo
           persist-credentials: true
 
       - name: Publish and deploy repo
         env:
           DELETE: ${{ needs.prepare.outputs.delete }}
-          REPO_BRANCH: ori
         run: |
           cd repo
           pip install protobuf
@@ -166,9 +150,9 @@ jobs:
             git add .
             git commit -m "Update extensions repo"
             git push
-            curl https://purge.jsdelivr.net/gh/extsup/extensions@ori/index.min.json
-            curl https://purge.jsdelivr.net/gh/extsup/extensions@ori/index.json
-            curl https://purge.jsdelivr.net/gh/extsup/extensions@ori/index.pb
+            curl https://purge.jsdelivr.net/gh/extsup/extensions@repo/index.min.json
+            curl https://purge.jsdelivr.net/gh/extsup/extensions@repo/index.json
+            curl https://purge.jsdelivr.net/gh/extsup/extensions@repo/index.pb
           else
             echo "No changes to commit"
           fi
