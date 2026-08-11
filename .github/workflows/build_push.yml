@@ -103,7 +103,7 @@ jobs:
           ./gradlew $MODULES
 
       - name: Upload APKs (${{ matrix.chunk.number }})
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0ac # v7.0.1
         if: "github.repository == 'extsup/extensions-source'"
         with:
           name: "individual-apks-${{ matrix.chunk.number }}"
@@ -125,8 +125,7 @@ jobs:
       github.repository == 'extsup/extensions-source' &&
       needs.prepare.result == 'success' &&
       needs.build.result != 'failure' &&
-      needs.build.result != 'cancelled' &&
-      needs.prepare.outputs.delete != '[]'
+      needs.build.result != 'cancelled'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -155,6 +154,7 @@ jobs:
       - name: Publish and deploy repo
         env:
           DELETE: ${{ needs.prepare.outputs.delete }}
+          REPO_BRANCH: ori
         run: |
           cd repo
           pip install protobuf
