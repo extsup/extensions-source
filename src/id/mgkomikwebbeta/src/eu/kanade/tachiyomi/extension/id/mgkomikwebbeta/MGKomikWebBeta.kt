@@ -30,7 +30,7 @@ abstract class MGKomikWebBeta : HttpSource() {
         .add("Referer", "$baseUrl/")
 
     override val client: OkHttpClient = network.client.newBuilder()
-        .rateLimit(4, 1.seconds)
+        .rateLimit(5, 1.seconds)
         .build()
 
     // ============================== Popular ===============================
