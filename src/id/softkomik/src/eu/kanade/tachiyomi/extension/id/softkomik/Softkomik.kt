@@ -365,9 +365,9 @@ abstract class Softkomik : HttpSource() {
         val sessionKey = if (isChapterImageRequest) sessionKeyChapterImage else sessionKeyChapterList
 
         val sessionApiUrl = if (isChapterImageRequest) {
-            "$baseUrl/api/session/chapter"
+            "$baseUrl/api/session/chapter/oaisos"
         } else {
-            "$baseUrl/api/session/amsnuy"
+            "$baseUrl/api/session/aksjkas"
         }
         val webViewUrl = if (isChapterImageRequest) {
             val chapterSegment = resolveWebViewChapterSegment(url)
@@ -547,7 +547,7 @@ abstract class Softkomik : HttpSource() {
     // Clean garabage at trailing of signature and token
     fun Request.withHeaders(session: SessionDto): Request = this.newBuilder()
         .header("X-Token", session.token.cleanB64())
-        .header("X-Sign", session.sign.take(64))
+        .header("X-Sign", session.sign.substringBefore("|oiq&"))
         .build()
 
     fun String.cleanB64(): String = substringBefore('=').let { it -> it + "=".repeat((4 - (it.length % 4)) % 4) }
