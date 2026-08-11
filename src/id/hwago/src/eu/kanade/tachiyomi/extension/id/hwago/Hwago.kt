@@ -12,13 +12,13 @@ import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.parseAs
 import keiyoushi.utils.tryParse
-import java.text.SimpleDateFormat
-import java.util.Locale
 import kotlinx.serialization.json.JsonElement
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.jsoup.Jsoup
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 @Source
 abstract class Hwago : KeiSource() {
@@ -171,9 +171,9 @@ abstract class Hwago : KeiSource() {
                 return when {
                     parts[1].startsWith("detik") -> now - num * 1_000
                     parts[1].startsWith("menit") -> now - num * 60_000
-                    parts[1].startsWith("jam")   -> now - num * 3_600_000
-                    parts[1].startsWith("hari")  -> now - num * 86_400_000
-                    parts[1].startsWith("minggu")-> now - num * 604_800_000
+                    parts[1].startsWith("jam") -> now - num * 3_600_000
+                    parts[1].startsWith("hari") -> now - num * 86_400_000
+                    parts[1].startsWith("minggu") -> now - num * 604_800_000
                     parts[1].startsWith("bulan") -> now - num * 2_592_000_000
                     parts[1].startsWith("tahun") -> now - num * 31_536_000_000
                     else -> 0L
