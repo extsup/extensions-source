@@ -46,28 +46,16 @@ abstract class ShinigamiBeta :
         get() = preferences.getString(PREF_RESIZE_URL_KEY, "")!!
 
     override val client = network.client.newBuilder()
-        .addInterceptor { chain ->
-            val req = chain.request()
-            chain.proceed(
-                req.newBuilder()
-                    .headers(req.headers.newBuilder().removeAll("X-Requested-With").build())
-                    .build(),
-            )
-        }
         .rateLimit(3)
         .build()
 
-    override fun headersBuilder(): Headers.Builder = super.headersBuilder()
-        .add("X-Requested-With", ('a'..'z').shuffled().take((10..20).random()).joinToString(""))
-
-    private val apiHeaders: Headers by lazy {
-        headersBuilder()
+    private val apiHeaders: Headers
+        get() = headersBuilder()
             .add("Accept", "application/json")
             .add("DNT", "1")
             .add("Origin", baseUrl)
             .add("Sec-GPC", "1")
             .build()
-    }
 
     // ============================== Popular ===============================
 
@@ -247,8 +235,18 @@ abstract class ShinigamiBeta :
 
     companion object {
         private val BLACKLISTED_GENRES = setOf(
-            "josei-genre", "smut", "gender-bender", "boys-love", "bl",
-            "yaoi", "yuri", "girls-love", "shounen-ai", "shoujo-ai", "shoujo", "sports",
+            "josei-genre",
+            "smut",
+            "gender-bender",
+            "boys-love",
+            "bl",
+            "yaoi",
+            "yuri",
+            "girls-love",
+            "shounen-ai",
+            "shoujo-ai",
+            "shoujo",
+            "sports",
         )
         private const val PREF_DOMAIN_KEY = "pref_domain"
         private const val PREF_DOMAIN_DEFAULT = "https://11.shinigami.asia"
