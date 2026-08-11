@@ -27,7 +27,6 @@ abstract class MGKomikWebBeta : HttpSource() {
     override val supportsLatest = true
 
     override fun headersBuilder(): Headers.Builder = super.headersBuilder()
-        .add("User-Agent", "Mozilla/5.0 (Android 13; Mobile; rv:109.0) Gecko/109.0 Firefox/109.0")
         .add("Referer", "$baseUrl/")
 
     override val client: OkHttpClient = network.client.newBuilder()
@@ -123,7 +122,7 @@ abstract class MGKomikWebBeta : HttpSource() {
         return document.select("img[data-page]").mapIndexed { index, img ->
             Page(
                 index = index,
-                imageUrl = img.attr("src").takeIf { it.isNotBlank() } ?: img.attr("data-src"),
+                imageUrl = img.attr("src").takeIf { it.isNotBlank() } ?: img.attr("data-src").trim(),
             )
         }
     }
