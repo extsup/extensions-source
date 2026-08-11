@@ -87,7 +87,7 @@ abstract class Hwago : KeiSource() {
                     runCatching { String(java.util.Base64.getDecoder().decode(it)) }.getOrNull()
                 }
                 status = when (
-                    doc.selectFirst("span.text-green-400, span.text-red-400, span.text-yellow-400")
+                    doc.selectFirst("span.capitalize.text-green-400, span.capitalize.text-red-400, span.capitalize.text-yellow-400")
                         ?.text()?.lowercase()?.trim()
                 ) {
                     "ongoing" -> SManga.ONGOING
