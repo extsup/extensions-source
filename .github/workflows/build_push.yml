@@ -123,8 +123,7 @@ jobs:
       github.repository == 'extsup/extensions-source' &&
       needs.prepare.result == 'success' &&
       needs.build.result != 'failure' &&
-      needs.build.result != 'cancelled' &&
-      needs.prepare.outputs.delete != '[]'
+      needs.build.result != 'cancelled'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
