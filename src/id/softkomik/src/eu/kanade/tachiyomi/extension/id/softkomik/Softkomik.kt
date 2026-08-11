@@ -211,7 +211,7 @@ abstract class Softkomik : HttpSource() {
         val imageSrc = data.imageSrc.ifEmpty {
             val slug = response.request.url.pathSegments[0]
             val chapter = response.request.url.pathSegments[2]
-            val urlApi = "$apiUrl/komik/$slug/chapter/$chapter/img/${data._id}"
+            val urlApi = "$baseUrl/api/komik/$slug/chapter/$chapter/img?id=${data._id}"
 
             val token = getBearerTokenFromCookie()
             if (token == null && isRequiredLogin) {
@@ -307,7 +307,8 @@ abstract class Softkomik : HttpSource() {
     private fun apiAuthInterceptor(chain: Interceptor.Chain): Response {
         val request = chain.request()
 
-        if (!request.url.toString().startsWith(apiUrl)) {
+        val urlStr = request.url.toString()
+        if (!urlStr.startsWith(apiUrl) && !urlStr.startsWith("$baseUrl/api/komik/")) {
             return chain.proceed(request)
         }
 
@@ -477,7 +478,7 @@ abstract class Softkomik : HttpSource() {
                         val url = request.url.toString()
 
                         // Intercept the chapter list API call — it always carries X-Token & X-Sign
-                        if (url.contains(apiUrl)) {
+                        if (url.contains(apiUrl) || url.contains("$baseUrl/api/")) {
                             val token = request.requestHeaders["X-Token"]
                             val sign = request.requestHeaders["X-Sign"]
 
