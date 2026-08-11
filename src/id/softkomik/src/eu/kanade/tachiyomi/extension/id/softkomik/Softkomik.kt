@@ -22,6 +22,7 @@ import keiyoushi.utils.parseAs
 import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import kotlinx.serialization.json.JsonObject
 import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
@@ -202,44 +203,44 @@ abstract class Softkomik : HttpSource() {
     override fun pageListRequest(chapter: SChapter): Request = GET("$baseUrl${chapter.url}", rscHeaders)
 
     override fun pageListParse(response: Response): List<Page> {
-        val isRequiredLogin = response.request.url.fragment?.contains(requiredLoginSuffix) == true
-        val data = response.extractNextJs<ChapterPageDataDto>()
-            ?: throw Exception("Could not find chapter data")
+    val isRequiredLogin = response.request.url.fragment?.contains(requiredLoginSuffix) == true
+    val data = response.extractNextJs<ChapterPageDataDto> {
+        it is JsonObject && "_id" in it
+    } ?: throw Exception("Could not find chapter data")
 
-        val imageSrc = data.imageSrc.ifEmpty {
-            val slug = response.request.url.pathSegments[0]
-            val chapter = response.request.url.pathSegments[2]
-            val urlApi = "$apiUrl/komik/$slug/chapter/$chapter/img/${data._id}"
+    val imageSrc = data.imageSrc.ifEmpty {
+        val slug = response.request.url.pathSegments[0]
+        val chapter = response.request.url.pathSegments[2]
+        val urlApi = "$apiUrl/komik/$slug/chapter/$chapter/img/${data._id}"
 
-            val token = getBearerTokenFromCookie()
-            if (token == null && isRequiredLogin) {
-                throw Exception("Chapter memerlukan login di WebView")
-            }
-            val authHeaders = if (token != null) {
-                headersBuilder()
-                    .addAll(headers)
-                    .set("Authorization", token.token)
-                    .build()
-            } else {
-                headers
-            }
-
-            client.newCall(GET(urlApi, authHeaders)).execute().use {
-                it.parseAs<ChapterPageImagesDto>().imageSrc
-            }
+        val token = getBearerTokenFromCookie()
+        if (token == null && isRequiredLogin) {
+            throw Exception("Chapter memerlukan login di WebView")
+        }
+        val authHeaders = if (token != null) {
+            headersBuilder()
+                .addAll(headers)
+                .set("Authorization", token.token)
+                .build()
+        } else {
+            headers
         }
 
-        // for manga/manhwa that requires login, the API still returns 200 but with empty image list.
-        if (imageSrc.isEmpty()) {
-            throw Exception("Chapter kosong atau memerlukan login di WebView")
-        }
-
-        val imageBaseUrl = if (data.storageInter2 == true) cdnUrls[2] else cdnUrls[0]
-
-        return imageSrc.mapIndexed { i, img ->
-            Page(i, imageUrl = "$imageBaseUrl/${img.removePrefix("/")}")
+        client.newCall(GET(urlApi, authHeaders)).execute().use {
+            it.parseAs<ChapterPageImagesDto>().imageSrc
         }
     }
+
+    if (imageSrc.isEmpty()) {
+        throw Exception("Chapter kosong atau memerlukan login di WebView")
+    }
+
+    val imageBaseUrl = if (data.storageInter2 == true) cdnUrls[2] else cdnUrls[0]
+
+    return imageSrc.mapIndexed { i, img ->
+        Page(i, imageUrl = "$imageBaseUrl/${img.removePrefix("/")}")
+    }
+}
 
     override fun imageUrlParse(response: Response) = throw UnsupportedOperationException()
 
