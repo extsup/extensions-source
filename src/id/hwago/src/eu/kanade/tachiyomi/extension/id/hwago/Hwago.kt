@@ -11,6 +11,9 @@ import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.parseAs
+import keiyoushi.utils.tryParse
+import java.text.SimpleDateFormat
+import java.util.Locale
 import kotlinx.serialization.json.JsonElement
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -79,7 +82,7 @@ abstract class Hwago : KeiSource() {
             SManga.create().apply {
                 url = manga.url
                 title = doc.selectFirst("h1")?.text()?.trim() ?: ""
-                thumbnail_url = doc.selectFirst("img[src*='imgsvr.my.id'][src*='/cover_']")?.absUrl("src")
+                thumbnail_url = doc.selectFirst("img[src*='imgsvr.my.id'][src*='/cover_'][width]")?.absUrl("src")
                 description = doc.selectFirst("[data-sr]")?.attr("data-sr")?.let {
                     runCatching { String(java.util.Base64.getDecoder().decode(it)) }.getOrNull()
                 }
@@ -92,9 +95,13 @@ abstract class Hwago : KeiSource() {
                     "hiatus" -> SManga.ON_HIATUS
                     else -> SManga.UNKNOWN
                 }
-                genre = doc.select("a[href^='/browse?genre='").joinToString { it.text().trim() }
-                author = doc.selectFirst(".j87549d span:last-child")?.text()?.trim()
-                artist = doc.selectFirst(".ja5cc span:last-child")?.text()?.trim()
+                author = doc.select("span.text-xs:contains(Author) ~ span").firstOrNull()?.text()?.trim()
+                artist = doc.select("span.text-xs:contains(Artist) ~ span").firstOrNull()?.text()?.trim()
+                val type = doc.selectFirst("span.uppercase.text-primary-400")?.text()?.trim()
+                genre = buildList {
+                    if (!type.isNullOrBlank()) add(type)
+                    addAll(doc.select("a[href*="genre="]").map { it.text().trim() })
+                }.joinToString()
             }
         } else {
             manga
@@ -107,7 +114,7 @@ abstract class Hwago : KeiSource() {
                     val num = el.attr("data-chapter").trim().toFloatOrNull() ?: 0f
                     name = "Chapter ${if (num == num.toLong().toFloat()) num.toLong() else num}"
                     date_upload = el.selectFirst("span.tabular-nums")?.text()?.trim()
-                        ?.let { parseRelativeDate(it) } ?: 0L
+                        ?.let { parseChapterDate(it) } ?: 0L
                 }
             }
         } else {
@@ -147,23 +154,32 @@ abstract class Hwago : KeiSource() {
                 thumbnail_url = el.selectFirst("img")?.absUrl("src")
             }
         }.distinctBy { it.url }
-        return MangasPage(mangas, false)
+        val hasNextPage = doc.selectFirst("a[aria-label='Selanjutnya']") != null
+        return MangasPage(mangas, hasNextPage)
     }
 
-    private fun parseRelativeDate(text: String): Long {
+    private val dateFormat = SimpleDateFormat("dd/MM/yy", Locale.ROOT)
+
+    private fun parseChapterDate(text: String): Long {
+        val t = text.trim().lowercase()
         val now = System.currentTimeMillis()
-        val parts = text.trim().split(" ")
-        if (parts.size < 2) return 0L
-        val num = parts[0].toLongOrNull() ?: return 0L
-        return when {
-            parts[1].contains("detik") -> now - num * 1_000
-            parts[1].contains("menit") -> now - num * 60 * 1_000
-            parts[1].contains("jam") -> now - num * 3_600 * 1_000
-            parts[1].contains("hari") -> now - num * 86_400 * 1_000
-            parts[1].contains("minggu") -> now - num * 604_800 * 1_000
-            parts[1].contains("bulan") -> now - num * 2_592_000 * 1_000
-            parts[1].contains("tahun") -> now - num * 31_536_000 * 1_000
-            else -> 0L
+        if (t == "baru saja" || t == "baru" || t == "just now") return now
+        val parts = t.split(" ")
+        if (parts.size >= 2) {
+            val num = parts[0].toLongOrNull()
+            if (num != null) {
+                return when {
+                    parts[1].startsWith("detik") -> now - num * 1_000
+                    parts[1].startsWith("menit") -> now - num * 60_000
+                    parts[1].startsWith("jam")   -> now - num * 3_600_000
+                    parts[1].startsWith("hari")  -> now - num * 86_400_000
+                    parts[1].startsWith("minggu")-> now - num * 604_800_000
+                    parts[1].startsWith("bulan") -> now - num * 2_592_000_000
+                    parts[1].startsWith("tahun") -> now - num * 31_536_000_000
+                    else -> 0L
+                }
+            }
         }
+        return dateFormat.tryParse(t)
     }
 }
