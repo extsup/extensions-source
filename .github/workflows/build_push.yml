@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches:
-      - main
+      - ori
     paths:
       - '**'
       - '!**.md'
@@ -88,7 +88,7 @@ jobs:
             git add .
             git commit -m "style: auto-apply spotless formatting [skip ci]"
             git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
-            git push origin main
+            git push origin ori
           else
             echo "No formatting changes to commit."
           fi
@@ -125,8 +125,7 @@ jobs:
       github.repository == 'extsup/extensions-source' &&
       needs.prepare.result == 'success' &&
       needs.build.result != 'failure' &&
-      needs.build.result != 'cancelled' &&
-      needs.prepare.outputs.delete != '[]'
+      needs.build.result != 'cancelled'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -139,7 +138,7 @@ jobs:
       - name: Checkout main branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: main
+          ref: ori
           path: main
           persist-credentials: false
 
@@ -148,13 +147,14 @@ jobs:
         with:
           repository: extsup/extensions
           token: ${{ secrets.BOT_PAT }}
-          ref: repo
+          ref: ori
           path: repo
           persist-credentials: true
 
       - name: Publish and deploy repo
         env:
           DELETE: ${{ needs.prepare.outputs.delete }}
+          REPO_BRANCH: ori
         run: |
           cd repo
           pip install protobuf
@@ -166,9 +166,9 @@ jobs:
             git add .
             git commit -m "Update extensions repo"
             git push
-            curl https://purge.jsdelivr.net/gh/extsup/extensions@repo/index.min.json
-            curl https://purge.jsdelivr.net/gh/extsup/extensions@repo/index.json
-            curl https://purge.jsdelivr.net/gh/extsup/extensions@repo/index.pb
+            curl https://purge.jsdelivr.net/gh/extsup/extensions@ori/index.min.json
+            curl https://purge.jsdelivr.net/gh/extsup/extensions@ori/index.json
+            curl https://purge.jsdelivr.net/gh/extsup/extensions@ori/index.pb
           else
             echo "No changes to commit"
           fi
