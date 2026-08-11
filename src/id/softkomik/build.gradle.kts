@@ -6,7 +6,7 @@ plugins {
 
 keiyoushi {
     name = "Softkomik"
-    versionCode = 14
+    versionCode = 15
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"
 
