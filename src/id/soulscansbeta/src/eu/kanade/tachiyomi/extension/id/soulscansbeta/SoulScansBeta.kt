@@ -118,9 +118,6 @@ abstract class SoulScansBeta : HttpSource() {
 
     // ==================== SEARCH ====================
 
-    private fun comicRequest(manga: SManga): Request =
-        GET("$apiUrl/comic/${manga.url}")
-
     override fun searchMangaRequest(
         page: Int,
         query: String,
@@ -233,6 +230,9 @@ abstract class SoulScansBeta : HttpSource() {
     }
 
     // ==================== PAGES ====================
+    
+    override fun pageListRequest(chapter: SChapter): Request =
+    GET("$seriesUrl/${chapter.url}")
 
     override fun pageListParse(response: Response): List<Page> {
         val obj = response.parseAs<JsonObject>()
@@ -262,6 +262,11 @@ abstract class SoulScansBeta : HttpSource() {
     override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 
     // ==================== HELPERS ====================
+    
+    private val seriesUrl = "$apiUrl/series/comic"
+
+    private fun comicRequest(manga: SManga): Request =
+    GET("$seriesUrl/${manga.url}")
 
     private fun parseMangaFromList(obj: JsonObject): SManga = SManga.create().apply {
         title = requireNotNull(obj["title"]) {
