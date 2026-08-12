@@ -118,6 +118,9 @@ abstract class SoulScansBeta : HttpSource() {
 
     // ==================== SEARCH ====================
 
+    private fun comicRequest(manga: SManga): Request =
+        GET("$apiUrl/comic/${manga.url}")
+
     override fun searchMangaRequest(
         page: Int,
         query: String,
@@ -129,6 +132,8 @@ abstract class SoulScansBeta : HttpSource() {
     override fun searchMangaParse(response: Response): MangasPage = popularMangaParse(response)
 
     // ==================== DETAIL ====================
+
+    override fun mangaDetailsRequest(manga: SManga): Request = comicRequest(manga)
 
     override fun mangaDetailsParse(response: Response): SManga {
         val obj = response.parseAs<JsonObject>()
@@ -182,6 +187,8 @@ abstract class SoulScansBeta : HttpSource() {
     }
 
     // ==================== CHAPTER LIST ====================
+
+    override fun chapterListRequest(manga: SManga): Request = comicRequest(manga)
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val obj = response.parseAs<JsonObject>()

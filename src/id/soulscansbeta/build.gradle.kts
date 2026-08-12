@@ -6,7 +6,7 @@ plugins {
 
 keiyoushi {
     name = "Soul Scans Beta"
-    versionCode = 5
+    versionCode = 4
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"
 
