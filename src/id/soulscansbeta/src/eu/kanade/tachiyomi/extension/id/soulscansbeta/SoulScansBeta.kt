@@ -154,14 +154,7 @@ abstract class SoulScansBeta : HttpSource() {
             description = obj["synopsis"]
                 ?.jsonPrimitive
                 ?.content
-
-            author = obj["author_name"]
-                ?.jsonPrimitive
-                ?.content
-
-            artist = obj["artist_name"]
-                ?.jsonPrimitive
-                ?.content
+                ?.takeIf { it.isNotBlank() }
 
             status = when (
                 obj["comic_status"]
@@ -176,13 +169,13 @@ abstract class SoulScansBeta : HttpSource() {
             }
 
             genre = listOfNotNull(
-                obj["comic_subtype"]?.jsonPrimitive?.content
-                    ?.lowercase()
-                    ?.replaceFirstChar { it.uppercase() },
                 obj["genres"]
                     ?.jsonArray
                     ?.mapNotNull { it.jsonObject["name"]?.jsonPrimitive?.content }
                     ?.joinToString(),
+                obj["comic_subtype"]?.jsonPrimitive?.content
+                    ?.lowercase()
+                    ?.replaceFirstChar { it.uppercase() },
             ).filter { it.isNotEmpty() }
                 .joinToString()
                 .ifEmpty { null }
