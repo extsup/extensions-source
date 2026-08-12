@@ -9,7 +9,6 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import keiyoushi.annotation.Source
 import keiyoushi.utils.parseAs
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
@@ -29,7 +28,7 @@ abstract class SoulScansBeta : HttpSource() {
 
     private val homeSectionsUrl = "$apiUrl/comic/home-sections"
 
-    private var cachedLatestUpdates: List<JsonElement>? = null
+    private var cachedLatestUpdates: List<SManga>? = null
 
     // ==================== POPULAR ====================
 
@@ -82,23 +81,7 @@ abstract class SoulScansBeta : HttpSource() {
         val start = (page - 1) * 36
         val end = minOf(start + 36, all.size)
 
-        val pageItems = if (start < all.size) all.subList(start, end) else emptyList()
-
-        val mangas = pageItems.map { item ->
-            val obj = item.jsonObject
-            SManga.create().apply {
-                title = requireNotNull(obj["series_title"]) { "Missing 'series_title'" }.jsonPrimitive.content
-                url = "/" + requireNotNull(obj["series_slug"]) { "Missing 'series_slug'" }.jsonPrimitive.content
-                thumbnail_url = obj["poster_image_url"]?.jsonPrimitive?.content
-                status = when (obj["series_status"]?.jsonPrimitive?.content) {
-                    "ONGOING" -> SManga.ONGOING
-                    "COMPLETED" -> SManga.COMPLETED
-                    "HIATUS" -> SManga.ON_HIATUS
-                    "DROPPED" -> SManga.CANCELLED
-                    else -> SManga.UNKNOWN
-                }
-            }
-        }
+        val mangas = if (start < all.size) all.subList(start, end) else emptyList()
 
         val hasNextPage = end < all.size
         if (!hasNextPage) cachedLatestUpdates = null
@@ -111,7 +94,21 @@ abstract class SoulScansBeta : HttpSource() {
 
         cachedLatestUpdates = requireNotNull(obj["latest_comic_updates"]) {
             "Missing 'latest_comic_updates' field"
-        }.jsonArray
+        }.jsonArray.map { item ->
+            val o = item.jsonObject
+            SManga.create().apply {
+                title = requireNotNull(o["series_title"]) { "Missing 'series_title'" }.jsonPrimitive.content
+                url = "/" + requireNotNull(o["series_slug"]) { "Missing 'series_slug'" }.jsonPrimitive.content
+                thumbnail_url = o["poster_image_url"]?.jsonPrimitive?.content
+                status = when (o["series_status"]?.jsonPrimitive?.content) {
+                    "ONGOING" -> SManga.ONGOING
+                    "COMPLETED" -> SManga.COMPLETED
+                    "HIATUS" -> SManga.ON_HIATUS
+                    "DROPPED" -> SManga.CANCELLED
+                    else -> SManga.UNKNOWN
+                }
+            }
+        }
 
         return paginateFromCache(1)
     }
@@ -131,6 +128,12 @@ abstract class SoulScansBeta : HttpSource() {
     // ==================== DETAIL ====================
 
     override fun mangaDetailsRequest(manga: SManga): Request = comicRequest(manga)
+
+    override fun getMangaUrl(manga: SManga): String =
+        "$baseUrl/comic/${manga.url.trimStart('/')}"
+
+    override fun getChapterUrl(chapter: SChapter): String =
+        "$baseUrl/comic/${chapter.url.trimStart('/')}"
 
     override fun mangaDetailsParse(response: Response): SManga {
         val obj = response.parseAs<JsonObject>()
@@ -172,14 +175,17 @@ abstract class SoulScansBeta : HttpSource() {
                 else -> SManga.UNKNOWN
             }
 
-            genre = obj["genres"]
-                ?.jsonArray
-                ?.mapNotNull { genre ->
-                    genre.jsonObject["name"]
-                        ?.jsonPrimitive
-                        ?.content
-                }
-                ?.joinToString()
+            genre = listOfNotNull(
+                obj["comic_subtype"]?.jsonPrimitive?.content
+                    ?.lowercase()
+                    ?.replaceFirstChar { it.uppercase() },
+                obj["genres"]
+                    ?.jsonArray
+                    ?.mapNotNull { it.jsonObject["name"]?.jsonPrimitive?.content }
+                    ?.joinToString(),
+            ).filter { it.isNotEmpty() }
+                .joinToString()
+                .ifEmpty { null }
         }
     }
 
@@ -203,9 +209,14 @@ abstract class SoulScansBeta : HttpSource() {
                 val chapter = unit.jsonObject
 
                 SChapter.create().apply {
-                    name = requireNotNull(chapter["title"]) {
-                        "Missing 'title'"
-                    }.jsonPrimitive.content
+                    val num = requireNotNull(chapter["number"]) {
+                        "Missing 'number'"
+                    }.jsonPrimitive.content.toFloatOrNull() ?: -1f
+                    name = if (num >= 0f) {
+                        "Chapter ${num.toInt()}"
+                    } else {
+                        chapter["title"]?.jsonPrimitive?.content ?: "Chapter"
+                    }
 
                     url = "$slug/chapter/${
                         requireNotNull(chapter["slug"]) {
