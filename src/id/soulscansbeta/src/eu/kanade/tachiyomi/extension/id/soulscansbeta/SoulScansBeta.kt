@@ -16,11 +16,9 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Request
+import rx.Observable
 import okhttp3.Response
-import java.time.LocalDateTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
+import java.time.Instant
 
 @Source
 abstract class SoulScansBeta : HttpSource() {
@@ -31,13 +29,8 @@ abstract class SoulScansBeta : HttpSource() {
 
     private val homeSectionsUrl = "$apiUrl/comic/home-sections"
 
-    private val dateFormatter = DateTimeFormatter.ofPattern(
-        "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
-        Locale.US,
-    )
 
     private var cachedLatestUpdates: List<JsonElement>? = null
-    private var latestPage = 1
 
     // ==================== POPULAR ====================
 
@@ -72,67 +65,33 @@ abstract class SoulScansBeta : HttpSource() {
 
     // ==================== LATEST ====================
 
-    override fun latestUpdatesRequest(page: Int): Request {
-        latestPage = page
+    override fun latestUpdatesRequest(page: Int): Request =
+        GET("$homeSectionsUrl?updateLimit=216&sections=latest_comic_updates")
 
-        if (page == 1) {
-            cachedLatestUpdates = null
-        }
+    override fun fetchLatestUpdates(page: Int): Observable<MangasPage> {
+        if (page == 1) cachedLatestUpdates = null
 
         return if (cachedLatestUpdates == null) {
-            GET(
-                "$homeSectionsUrl?updateLimit=216&sections=latest_comic_updates",
-            )
+            super.fetchLatestUpdates(page)
         } else {
-            GET(
-                "$homeSectionsUrl?updateLimit=0&sections=latest_comic_updates",
-            )
+            Observable.just(paginateFromCache(page))
         }
     }
 
-    override fun latestUpdatesParse(response: Response): MangasPage {
-        if (cachedLatestUpdates == null) {
-            val obj = response.parseAs<JsonObject>()
-
-            cachedLatestUpdates = requireNotNull(
-                obj["latest_comic_updates"],
-            ) {
-                "Missing 'latest_comic_updates' field"
-            }.jsonArray
-        }
-
+    private fun paginateFromCache(page: Int): MangasPage {
         val all = cachedLatestUpdates.orEmpty()
-
-        val start = (latestPage - 1) * 36
+        val start = (page - 1) * 36
         val end = minOf(start + 36, all.size)
 
-        val pageItems = if (start < all.size) {
-            all.subList(start, end)
-        } else {
-            emptyList()
-        }
+        val pageItems = if (start < all.size) all.subList(start, end) else emptyList()
 
         val mangas = pageItems.map { item ->
             val obj = item.jsonObject
-
             SManga.create().apply {
-                title = requireNotNull(obj["series_title"]) {
-                    "Missing 'series_title'"
-                }.jsonPrimitive.content
-
-                url = requireNotNull(obj["series_slug"]) {
-                    "Missing 'series_slug'"
-                }.jsonPrimitive.content
-
-                thumbnail_url = obj["poster_image_url"]
-                    ?.jsonPrimitive
-                    ?.content
-
-                status = when (
-                    obj["series_status"]
-                        ?.jsonPrimitive
-                        ?.content
-                ) {
+                title = requireNotNull(obj["series_title"]) { "Missing 'series_title'" }.jsonPrimitive.content
+                url = requireNotNull(obj["series_slug"]) { "Missing 'series_slug'" }.jsonPrimitive.content
+                thumbnail_url = obj["poster_image_url"]?.jsonPrimitive?.content
+                status = when (obj["series_status"]?.jsonPrimitive?.content) {
                     "ONGOING" -> SManga.ONGOING
                     "COMPLETED" -> SManga.COMPLETED
                     "HIATUS" -> SManga.ON_HIATUS
@@ -143,11 +102,19 @@ abstract class SoulScansBeta : HttpSource() {
         }
 
         val hasNextPage = end < all.size
+        if (!hasNextPage) cachedLatestUpdates = null
 
-        return MangasPage(
-            mangas = mangas,
-            hasNextPage = hasNextPage,
-        )
+        return MangasPage(mangas = mangas, hasNextPage = hasNextPage)
+    }
+
+    override fun latestUpdatesParse(response: Response): MangasPage {
+        val obj = response.parseAs<JsonObject>()
+
+        cachedLatestUpdates = requireNotNull(obj["latest_comic_updates"]) {
+            "Missing 'latest_comic_updates' field"
+        }.jsonArray
+
+        return paginateFromCache(1)
     }
 
     // ==================== SEARCH ====================
@@ -317,18 +284,9 @@ abstract class SoulScansBeta : HttpSource() {
     }
 
     private fun parseDate(value: String?): Long {
-        if (value == null) {
-            return 0L
-        }
-
+        if (value == null) return 0L
         return try {
-            LocalDateTime.parse(
-                value,
-                dateFormatter,
-            )
-                .atZone(ZoneId.of("UTC"))
-                .toInstant()
-                .toEpochMilli()
+            Instant.parse(value).toEpochMilli()
         } catch (_: Exception) {
             0L
         }
