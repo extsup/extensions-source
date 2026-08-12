@@ -63,8 +63,7 @@ abstract class SoulScansBeta : HttpSource() {
 
     // ==================== LATEST ====================
 
-    override fun latestUpdatesRequest(page: Int): Request =
-        GET("$homeSectionsUrl?updateLimit=216&sections=latest_comic_updates")
+    override fun latestUpdatesRequest(page: Int): Request = GET("$homeSectionsUrl?updateLimit=216&sections=latest_comic_updates")
 
     override fun fetchLatestUpdates(page: Int): Observable<MangasPage> {
         if (page == 1) cachedLatestUpdates = null
@@ -129,11 +128,9 @@ abstract class SoulScansBeta : HttpSource() {
 
     override fun mangaDetailsRequest(manga: SManga): Request = comicRequest(manga)
 
-    override fun getMangaUrl(manga: SManga): String =
-        "$baseUrl/comic/${manga.url.trimStart('/')}"
+    override fun getMangaUrl(manga: SManga): String = "$baseUrl/comic/${manga.url.trimStart('/')}"
 
-    override fun getChapterUrl(chapter: SChapter): String =
-        "$baseUrl/comic/${chapter.url.trimStart('/')}"
+    override fun getChapterUrl(chapter: SChapter): String = "$baseUrl/comic/${chapter.url.trimStart('/')}"
 
     override fun mangaDetailsParse(response: Response): SManga {
         val obj = response.parseAs<JsonObject>()
@@ -235,9 +232,8 @@ abstract class SoulScansBeta : HttpSource() {
     }
 
     // ==================== PAGES ====================
-    
-    override fun pageListRequest(chapter: SChapter): Request =
-    GET("$seriesUrl/${chapter.url.trimStart('/')}")
+
+    override fun pageListRequest(chapter: SChapter): Request = GET("$seriesUrl/${chapter.url.trimStart('/')}")
 
     override fun pageListParse(response: Response): List<Page> {
         val obj = response.parseAs<JsonObject>()
@@ -267,11 +263,10 @@ abstract class SoulScansBeta : HttpSource() {
     override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 
     // ==================== HELPERS ====================
-    
+
     private val seriesUrl = "$apiUrl/series/comic"
 
-    private fun comicRequest(manga: SManga): Request =
-    GET("$seriesUrl/${manga.url.trimStart('/')}")
+    private fun comicRequest(manga: SManga): Request = GET("$seriesUrl/${manga.url.trimStart('/')}")
 
     private fun parseMangaFromList(obj: JsonObject): SManga = SManga.create().apply {
         title = requireNotNull(obj["title"]) {
