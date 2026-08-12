@@ -16,8 +16,8 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Request
-import rx.Observable
 import okhttp3.Response
+import rx.Observable
 import java.time.Instant
 
 @Source
@@ -28,7 +28,6 @@ abstract class SoulScansBeta : HttpSource() {
     private val apiUrl = "https://img.soulscans.org/api"
 
     private val homeSectionsUrl = "$apiUrl/comic/home-sections"
-
 
     private var cachedLatestUpdates: List<JsonElement>? = null
 
