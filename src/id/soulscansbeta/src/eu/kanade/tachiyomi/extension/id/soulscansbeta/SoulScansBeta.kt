@@ -88,7 +88,7 @@ abstract class SoulScansBeta : HttpSource() {
             val obj = item.jsonObject
             SManga.create().apply {
                 title = requireNotNull(obj["series_title"]) { "Missing 'series_title'" }.jsonPrimitive.content
-                url = requireNotNull(obj["series_slug"]) { "Missing 'series_slug'" }.jsonPrimitive.content
+                url = "/" + requireNotNull(obj["series_slug"]) { "Missing 'series_slug'" }.jsonPrimitive.content
                 thumbnail_url = obj["poster_image_url"]?.jsonPrimitive?.content
                 status = when (obj["series_status"]?.jsonPrimitive?.content) {
                     "ONGOING" -> SManga.ONGOING
@@ -140,7 +140,7 @@ abstract class SoulScansBeta : HttpSource() {
                 "Missing 'title'"
             }.jsonPrimitive.content
 
-            url = requireNotNull(obj["slug"]) {
+            url = "/" + requireNotNull(obj["slug"]) {
                 "Missing 'slug'"
             }.jsonPrimitive.content
 
@@ -232,7 +232,7 @@ abstract class SoulScansBeta : HttpSource() {
     // ==================== PAGES ====================
     
     override fun pageListRequest(chapter: SChapter): Request =
-    GET("$seriesUrl/${chapter.url}")
+    GET("$seriesUrl/${chapter.url.trimStart('/')}")
 
     override fun pageListParse(response: Response): List<Page> {
         val obj = response.parseAs<JsonObject>()
@@ -266,14 +266,14 @@ abstract class SoulScansBeta : HttpSource() {
     private val seriesUrl = "$apiUrl/series/comic"
 
     private fun comicRequest(manga: SManga): Request =
-    GET("$seriesUrl/${manga.url}")
+    GET("$seriesUrl/${manga.url.trimStart('/')}")
 
     private fun parseMangaFromList(obj: JsonObject): SManga = SManga.create().apply {
         title = requireNotNull(obj["title"]) {
             "Missing 'title'"
         }.jsonPrimitive.content
 
-        url = requireNotNull(obj["slug"]) {
+        url = "/" + requireNotNull(obj["slug"]) {
             "Missing 'slug'"
         }.jsonPrimitive.content
 
