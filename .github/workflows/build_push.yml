@@ -60,7 +60,8 @@ jobs:
       - name: Checkout main branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          persist-credentials: false
+          persist-credentials: true
+          token: ${{ secrets.BOT_PAT }}
 
       - name: Set up Java
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
@@ -85,7 +86,7 @@ jobs:
         run: |
           git config user.email "156378334+extsup@users.noreply.github.com"
           git config user.name "extsup"
-          git diff --quiet || (git add -A && git commit -m "Apply spotless formatting")
+          git diff --quiet || (git add -A && git commit -m "Apply spotless formatting [skip ci]" && git push)
 
       - name: Build extensions (${{ matrix.chunk.number }})
         env:
