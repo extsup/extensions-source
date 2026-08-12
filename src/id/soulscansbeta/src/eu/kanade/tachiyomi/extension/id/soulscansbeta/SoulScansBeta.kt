@@ -155,6 +155,7 @@ abstract class SoulScansBeta : HttpSource() {
                 ?.jsonPrimitive
                 ?.content
                 ?.takeIf { it.isNotBlank() }
+                ?: "Belum ada sinopsis."
 
             status = when (
                 obj["comic_status"]
