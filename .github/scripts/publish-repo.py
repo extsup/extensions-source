@@ -34,8 +34,8 @@ ARTIFACTS_DIR = Path.home() / "apk-artifacts"
 
 # The checked-out `repo` branch we publish into (the working directory).
 REPO_DIR = Path.cwd()
-REPO_APK_DIR = REPO_DIR / "apk"
-REPO_JAR_DIR = REPO_DIR / "jar"
+REPO_APK_DIR = Path("/tmp/apk")
+REPO_JAR_DIR = Path("/tmp/jar")
 REPO_ICON_DIR = REPO_DIR / "icon"
 REPO_APK_DIR.mkdir(parents=True, exist_ok=True)
 REPO_JAR_DIR.mkdir(parents=True, exist_ok=True)
@@ -156,8 +156,6 @@ for info_file in ARTIFACTS_DIR.glob("**/extsup-source-info.json"):
     )
     
     # Write files
-    repo_apk.write_bytes(apk_bytes)
-    repo_jar.write_bytes(jar_bytes)
     published_files.update((repo_apk, repo_jar))
     updated_release_assets[package_name] = assets
     
@@ -228,7 +226,7 @@ all_extensions.sort(key=lambda ext: ext.packageName)
 
 # Create main index
 index = index_pb2.Index(
-    name="extsup",
+    name="Extsup",
     badgeLabel="Extsup",
     signingKey=SIGNING_KEY,
     contact=index_pb2.Contact(
