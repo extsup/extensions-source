@@ -71,9 +71,11 @@ abstract class LumosKomik : KeiSource() {
         val genres = ldJson?.genre
             ?.map { it.lowercase().replaceFirstChar(Char::uppercaseChar) }
             ?.let { list ->
-                if (comicType != null && list.none { it.equals(comicType, ignoreCase = true) })
+                if (comicType != null && list.none { it.equals(comicType, ignoreCase = true) }) {
                     list + comicType
-                else list
+                } else {
+                    list
+                }
             }
             ?.joinToString(", ")
 
