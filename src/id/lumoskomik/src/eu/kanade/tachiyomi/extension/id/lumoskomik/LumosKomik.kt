@@ -28,7 +28,7 @@ abstract class LumosKomik : KeiSource() {
     }
 
     override suspend fun getLatestUpdates(page: Int): MangasPage {
-        val dto = client.get("$baseUrl/api/popular?tab=komik&period=weekly&perPage=24").parseAs<PopularDto>()
+        val dto = client.get("$baseUrl/api/popular?tab=komik&period=daily&perPage=24").parseAs<PopularDto>()
         return MangasPage(dto.data.map { it.toSManga(baseUrl) }, hasNextPage = false)
     }
 
@@ -65,10 +65,16 @@ abstract class LumosKomik : KeiSource() {
 
         val altName = ldJson?.alternateName?.takeIf { it != ldJson.name }
 
-        // Genres from JSON-LD already include comic type (e.g. "Manhwa") at the end.
-        // Normalize to title case since site may store type in ALL CAPS.
+        // Genres from JSON-LD, plus comic type from HTML appended at the end (title case).
+        val comicType = doc.select("span.text-primary-400").firstOrNull()?.text()
+            ?.lowercase()?.replaceFirstChar(Char::uppercaseChar)
         val genres = ldJson?.genre
             ?.map { it.lowercase().replaceFirstChar(Char::uppercaseChar) }
+            ?.let { list ->
+                if (comicType != null && list.none { it.equals(comicType, ignoreCase = true) })
+                    list + comicType
+                else list
+            }
             ?.joinToString(", ")
 
         return SManga.create().apply {
@@ -93,7 +99,7 @@ abstract class LumosKomik : KeiSource() {
         }
     }
 
-    private fun parseChapterList(doc: Document): List<SChapter> = doc.select("a[id^=chapter-][data-chapter]").map { el ->
+    private fun parseChapterList(doc: Document): List<SChapter> = doc.select("a[href^='/read/'][data-chapter]").map { el ->
         val chapterNum = el.attr("data-chapter").trim()
         val href = el.attr("href") // e.g. "/read/comic-slug/chapter-116"
         val dateText = el.select("span.tabular-nums").text().trim()
