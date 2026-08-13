@@ -23,27 +23,24 @@ abstract class LumosKomik : KeiSource() {
     override fun getChapterUrl(chapter: SChapter) = "$baseUrl/read/${chapter.url}"
 
     override suspend fun getPopularManga(page: Int): MangasPage {
-        val response = client.get("$baseUrl/api/popular?tab=komik&period=all&perPage=24")
-        val dto = response.parseAs<PopularDto>()
+        val dto = client.get("$baseUrl/api/popular?tab=komik&period=all&perPage=24").parseAs<PopularDto>()
         return MangasPage(dto.data.map { it.toSManga(baseUrl) }, hasNextPage = false)
     }
 
     override suspend fun getLatestUpdates(page: Int): MangasPage {
-        val response = client.get("$baseUrl/api/popular?tab=komik&period=weekly&perPage=24")
-        val dto = response.parseAs<PopularDto>()
+        val dto = client.get("$baseUrl/api/popular?tab=komik&period=weekly&perPage=24").parseAs<PopularDto>()
         return MangasPage(dto.data.map { it.toSManga(baseUrl) }, hasNextPage = false)
     }
 
     override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
-        val response = client.get("$baseUrl/api/search?q=${query.trim()}")
-        val dto = response.parseAs<SearchDto>()
+        val dto = client.get("$baseUrl/api/search?q=${query.trim()}").parseAs<SearchDto>()
         return MangasPage(dto.results.map { it.toSManga(baseUrl) }, hasNextPage = false)
     }
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
         val slug = url.pathSegments.lastOrNull { it.isNotEmpty() } ?: return null
-        val response = client.get("$baseUrl/comic/$slug")
-        return parseMangaDetail(Jsoup.parse(response.body.string()), slug)
+        val doc = Jsoup.parse(client.get("$baseUrl/comic/$slug").body.string())
+        return parseMangaDetail(doc, slug)
     }
 
     override suspend fun fetchMangaUpdate(
@@ -52,11 +49,10 @@ abstract class LumosKomik : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        val response = client.get("$baseUrl/comic/${manga.url}")
-        val doc = Jsoup.parse(response.body.string())
+        val doc = Jsoup.parse(client.get("$baseUrl/comic/${manga.url}").body.string())
         return SMangaUpdate(
-            manga = if (fetchDetails) parseMangaDetail(doc, manga.url) else null,
-            chapters = if (fetchChapters) parseChapterList(doc) else null,
+            manga = if (fetchDetails) parseMangaDetail(doc, manga.url) else manga,
+            chapters = if (fetchChapters) parseChapterList(doc) else chapters,
         )
     }
 
@@ -64,21 +60,23 @@ abstract class LumosKomik : KeiSource() {
         val ldJson = doc.select("script[type='application/ld+json']")
             .map { it.data() }
             .firstOrNull { it.contains("ComicSeries") }
-            ?.parseAs<List<LdJsonDto>>()
+            ?.let { it.parseAs<List<LdJsonDto>>() }
             ?.firstOrNull { it.type == "ComicSeries" }
 
+        val altName = ldJson?.alternateName?.takeIf { it != ldJson.name }
+
+        // Genres from JSON-LD already include comic type (e.g. "Manhwa") at the end.
+        // Normalize to title case since site may store type in ALL CAPS.
         val genres = ldJson?.genre
             ?.map { it.lowercase().replaceFirstChar(Char::uppercaseChar) }
             ?.joinToString(", ")
-
-        val altName = ldJson?.alternateName?.takeIf { it != ldJson.name }
 
         return SManga.create().apply {
             url = slug
             title = ldJson?.name ?: doc.title().substringBefore(" | ")
             thumbnail_url = ldJson?.image
             description = buildString {
-                altName?.let { append("Alt title: $it\n\n") }
+                if (altName != null) append("Alt title: $altName\n\n")
                 ldJson?.description?.let { append(it) }
             }.ifEmpty { null }
             author = ldJson?.author?.name
@@ -107,6 +105,7 @@ abstract class LumosKomik : KeiSource() {
         }
     }
 
+    // Parses Indonesian relative dates: "35 menit lalu", "1 hari lalu", "2 minggu lalu"
     private fun parseRelativeDate(text: String): Long {
         val now = System.currentTimeMillis()
         val parts = text.trim().split(" ")
@@ -125,18 +124,17 @@ abstract class LumosKomik : KeiSource() {
     }
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        val response = client.get("$baseUrl/read/${chapter.url}")
-        val doc = Jsoup.parse(response.body.string())
+        val doc = Jsoup.parse(client.get("$baseUrl/read/${chapter.url}").body.string())
 
         val pages = doc.select("#reader-pages img[src]")
             .mapIndexed { i, el -> Page(i, imageUrl = el.absUrl("src")) }
 
         if (pages.isNotEmpty()) return pages
 
+        // Fallback: derive pages from previous chapter's next-pages API
         val parts = chapter.url.split("/")
         val comicSlug = parts.dropLast(1).joinToString("/")
-        val chapterSlug = parts.last()
-        val prevNum = chapterSlug.removePrefix("chapter-").toIntOrNull()?.minus(1)
+        val prevNum = parts.last().removePrefix("chapter-").toIntOrNull()?.minus(1)
         if (prevNum != null && prevNum >= 1) {
             val dto = client.get(
                 "$baseUrl/api/chapters/chapter-$prevNum/next-pages?comic=$comicSlug",

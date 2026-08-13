@@ -15,7 +15,6 @@ class ComicDto(
     private val slug: String,
     private val title: String,
     private val coverImage: String?,
-    private val type: String? = null,
     private val status: String? = null,
     private val author: String? = null,
 ) {
@@ -44,6 +43,7 @@ class NextPagesDto(
 class LdJsonDto(
     @SerialName("@type") val type: String = "",
     val name: String? = null,
+    val alternateName: String? = null,
     val description: String? = null,
     val image: String? = null,
     val author: PersonDto? = null,
