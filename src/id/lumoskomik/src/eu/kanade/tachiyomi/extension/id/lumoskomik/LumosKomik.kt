@@ -28,8 +28,15 @@ abstract class LumosKomik : KeiSource() {
     }
 
     override suspend fun getLatestUpdates(page: Int): MangasPage {
-        val dto = client.get("$baseUrl/api/popular?tab=komik&period=daily&perPage=24").parseAs<PopularDto>()
-        return MangasPage(dto.data.map { it.toSManga(baseUrl) }, hasNextPage = false)
+        val doc = Jsoup.parse(client.get("$baseUrl/all-series?sort=latest").body.string())
+        val mangas = doc.select("a.htg-card-cover[href^='/comic/']").map { el ->
+            SManga.create().apply {
+                url = el.attr("href").removePrefix("/comic/")
+                title = el.select("img").attr("alt")
+                thumbnail_url = el.select("img").attr("abs:src").ifEmpty { null }
+            }
+        }
+        return MangasPage(mangas, hasNextPage = false)
     }
 
     override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
