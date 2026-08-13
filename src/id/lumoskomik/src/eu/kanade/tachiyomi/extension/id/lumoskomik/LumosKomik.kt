@@ -95,17 +95,15 @@ abstract class LumosKomik : KeiSource() {
         }
     }
 
-    private fun parseChapterList(doc: Document): List<SChapter> {
-        return doc.select("a[id^=chapter-][data-chapter]").map { el ->
-            val chapterNum = el.attr("data-chapter").trim()
-            val href = el.attr("href") // e.g. "/read/comic-slug/chapter-116"
-            val dateText = el.select("span.tabular-nums").text().trim()
-            SChapter.create().apply {
-                url = href.removePrefix("/read/")
-                name = "Chapter ${chapterNum.trimEnd('0').trimEnd('.')}"
-                chapter_number = chapterNum.toFloatOrNull() ?: -1f
-                date_upload = parseRelativeDate(dateText)
-            }
+    private fun parseChapterList(doc: Document): List<SChapter> = doc.select("a[id^=chapter-][data-chapter]").map { el ->
+        val chapterNum = el.attr("data-chapter").trim()
+        val href = el.attr("href") // e.g. "/read/comic-slug/chapter-116"
+        val dateText = el.select("span.tabular-nums").text().trim()
+        SChapter.create().apply {
+            url = href.removePrefix("/read/")
+            name = "Chapter ${chapterNum.trimEnd('0').trimEnd('.')}"
+            chapter_number = chapterNum.toFloatOrNull() ?: -1f
+            date_upload = parseRelativeDate(dateText)
         }
     }
 
