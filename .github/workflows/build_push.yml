@@ -157,6 +157,7 @@ jobs:
         env:
           DELETE: ${{ needs.prepare.outputs.delete }}
           REPO_BRANCH: ori
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
         run: |
           cd repo
           pip install protobuf
