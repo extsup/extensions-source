@@ -89,6 +89,7 @@ abstract class Komiku : HttpSource() {
             genre = document.select("ul.genre li.genre a span").joinToString { it.text() }.takeIf { it.isNotEmpty() }
             status = parseStatus(document.selectFirst("table.inftable tr > td:contains(Status) + td")?.text())
             thumbnail_url = document.selectFirst("div.ims > img")?.absUrl("src")?.removeQuery()
+    ?.replace(".to", ".org")
         }
     }
 
