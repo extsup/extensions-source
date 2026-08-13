@@ -207,8 +207,7 @@ def get_release_tag(batch_index: int) -> str:
         f"{current_sha_short}-{batch_index}" if release_count > 1 else current_sha_short
     )
 
-
-# Merge with the already-published index
+# Load remote index for URL fallback
 index_path = REPO_DIR.joinpath("index.json")
 if index_path.exists():
     with index_path.open() as f:
@@ -216,6 +215,23 @@ if index_path.exists():
 else:
     remote_proto = index_pb2.Index()
 
+remote_extensions = {
+    ext.packageName: ext for ext in remote_proto.extensionList.extensions
+}
+
+# Update apkUrl/jarUrl to GitHub Releases URL
+for i, (ext, apk, jar, changed) in enumerate(new_extensions):
+    if changed:
+        tag = get_release_tag(i // ext_per_release)
+        ext.resources.apkUrl = f"{RELEASE_BASE_URL}/{tag}/{apk.name}"
+        ext.resources.jarUrl = f"{RELEASE_BASE_URL}/{tag}/{jar.name}"
+    else:
+        old_resources = remote_extensions[ext.packageName].resources
+        ext.resources.apkUrl = old_resources.apkUrl
+        ext.resources.jarUrl = old_resources.jarUrl
+
+
+# Merge with the already-published index
 all_extensions = [
     ext
     for ext in remote_proto.extensionList.extensions
