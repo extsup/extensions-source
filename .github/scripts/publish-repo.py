@@ -138,7 +138,7 @@ all_extensions.sort(key=lambda ext: ext.packageName)
 
 index = index_pb2.Index(
     name="extsup",
-    badgeLabel="extsup",
+    badgeLabel="Extsup",
     signingKey="af8dce867726424977496de4c45340bcf7388c184b75a823b6d7d69bee8fafd4",
     contact=index_pb2.Contact(
         website="https://www.facebook.com/profile.php?id=61591490231900&mibextid=rS40aB7S9Ucbxw6v"
