@@ -37,7 +37,7 @@ abstract class Komiku : HttpSource() {
     override fun popularMangaParse(response: Response): MangasPage = mangaListParse(response)
 
     // =============================== Latest ===============================
-    override fun latestUpdatesRequest(page: Int): Request = GET(mangaApiUrlBuilder(page).addQueryParameter("orderby", "modified").build(), headers)
+    override fun latestUpdatesRequest(page: Int): Request = GET(mangaApiUrlBuilder(page).build(), headers)
 
     override fun latestUpdatesParse(response: Response): MangasPage = mangaListParse(response)
 
@@ -85,7 +85,7 @@ abstract class Komiku : HttpSource() {
                 }
             }
 
-            author = document.selectFirst("table.inftable td:contains(Pengarang)+td, table.inftable td:contains(Komikus)+td")?.text()
+            author = document.selectFirst("table.inftable td:contains(Author)+td, table.inftable td:contains(Pengarang)+td, table.inftable td:contains(Komikus)+td")?.text()
             genre = document.select("ul.genre li.genre a span").joinToString { it.text() }.takeIf { it.isNotEmpty() }
             status = parseStatus(document.selectFirst("table.inftable tr > td:contains(Status) + td")?.text())
             thumbnail_url = document.selectFirst("div.ims > img")?.absUrl("src")?.removeQuery()
