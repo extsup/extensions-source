@@ -74,7 +74,7 @@ abstract class Voratoon : KeiSource() {
             addQueryParameter("page", page.toString())
             addQueryParameter("sort", sort?.apiValue ?: "latest")
             addQueryParameter("sortOrder", "desc")
-            if (query.isNotBlank()) addQueryParameter("search", query)
+            if (query.isNotBlank()) addQueryParameter("title", query)
             status?.apiValue?.let { addQueryParameter("status", it) }
             format?.apiValue?.let { addQueryParameter("format", it) }
             genre?.selectedId?.let { addQueryParameter("genreId", it.toString()) }
