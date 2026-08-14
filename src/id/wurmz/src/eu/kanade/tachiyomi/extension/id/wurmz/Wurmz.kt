@@ -115,10 +115,11 @@ abstract class Wurmz : HttpSource() {
         val bodyString = response.body.string()
         val details = bodyString.extractNextJsRsc<MangaDetailsDto> {
             it is JsonObject && it["@type"]?.jsonPrimitive?.content == "ComicSeries"
-        } ?: bodyString.extractNextJsRsc<JsonObject> {
-            it is JsonObject && it.containsKey("dangerouslySetInnerHTML") &&
-                it.jsonObject["dangerouslySetInnerHTML"]?.jsonObject?.get("__html")?.jsonPrimitive?.content?.contains("ComicSeries") == true
-        }?.get("dangerouslySetInnerHTML")?.jsonObject?.get("__html")?.jsonPrimitive?.content?.parseAs<MangaDetailsDto>()
+        } ?: bodyString.extractNextJsRsc<kotlinx.serialization.json.JsonArray> {
+            it is kotlinx.serialization.json.JsonArray &&
+                it.getOrNull(3)?.jsonObject?.get("dangerouslySetInnerHTML")
+                    ?.jsonObject?.get("__html")?.jsonPrimitive?.content?.contains("ComicSeries") == true
+        }?.getOrNull(3)?.jsonObject?.get("dangerouslySetInnerHTML")?.jsonObject?.get("__html")?.jsonPrimitive?.content?.parseAs<MangaDetailsDto>()
             ?: throw Exception("Gagal memproses detail komik")
 
         val statusText = bodyString.extractNextJsRsc<JsonObject> {
