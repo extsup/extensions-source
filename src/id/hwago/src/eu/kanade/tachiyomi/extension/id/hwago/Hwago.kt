@@ -10,7 +10,6 @@ import keiyoushi.annotation.Source
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
-import keiyoushi.utils.parseAs
 import keiyoushi.utils.tryParse
 import kotlinx.serialization.json.JsonElement
 import okhttp3.HttpUrl
@@ -54,12 +53,12 @@ abstract class Hwago : KeiSource() {
 
         val url = "$baseUrl/browse".toHttpUrl().newBuilder().apply {
             addQueryParameter("page", page.toString())
-            filters.filterIsInstance<UriFilter>().forEach { it.   addToUri(this) }
-    }.build()
+            filters.filterIsInstance<UriFilter>().forEach { it.addToUri(this) }
+        }.build()
 
-    val response = client.get(url, headers)
-    return parseMangaList(response.body.string())
-}
+        val response = client.get(url, headers)
+        return parseMangaList(response.body.string())
+    }
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
         val path = url.encodedPath
