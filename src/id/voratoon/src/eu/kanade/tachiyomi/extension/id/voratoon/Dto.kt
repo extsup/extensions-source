@@ -59,7 +59,7 @@ class SeriesDetailItemDto(
         thumbnail_url = info.coverImage
         author = info.author
         description = buildString {
-            info.synopsis?.let { append(it) }
+            info.synopsis?.trim()?.replace(Regex("\n{3,}"), "\n\n")?.let { append(it) }
             info.nativeTitle?.let { append("\n\nAlt title: $it") }
         }
         genre = buildList {
