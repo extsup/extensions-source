@@ -6,14 +6,14 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.encodeToJsonElement
-import kotlinx.serialization.json.decodeFromJsonElement
 import keiyoushi.annotation.Source
 import keiyoushi.network.get
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.firstInstanceOrNull
 import keiyoushi.utils.parseAs
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.encodeToJsonElement
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 
@@ -102,8 +102,11 @@ abstract class Voratoon : KeiSource() {
 
     override fun getFilterList(data: JsonElement?): FilterList {
         val genres = data?.let {
-            try { Json.decodeFromJsonElement(GenreListDto.serializer(), it).data }
-            catch (e: Exception) { genreList }
+            try {
+                Json.decodeFromJsonElement(GenreListDto.serializer(), it).data
+            } catch (e: Exception) {
+                genreList
+            }
         } ?: genreList
         return FilterList(
             SortFilter(),
