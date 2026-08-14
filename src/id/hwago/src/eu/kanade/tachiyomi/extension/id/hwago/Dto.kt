@@ -12,15 +12,15 @@ class SearchResponseDto {
 class SearchResultDto {
     val slug: String = ""
     val title: String = ""
-    val coverImage: String = ""
+    val coverImage: String? = null
 
     fun toSManga(baseUrl: String) = SManga.create().apply {
         url = "/comic/$slug"
         this.title = this@SearchResultDto.title
-        thumbnail_url = if (coverImage.startsWith("http")) {
-            coverImage
-        } else {
-            "$baseUrl/api/image/${coverImage.trimStart('/')}"
+        thumbnail_url = when {
+            coverImage == null -> null
+            coverImage.startsWith("http") -> coverImage
+            else -> "$baseUrl/api/image/${coverImage.trimStart('/')}"
         }
     }
 }
