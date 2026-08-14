@@ -14,6 +14,6 @@ keiyoushi {
     source {
         lang = "id"
         baseUrl = "https://v7.kiryuu.to"
-        id = 3639673976007021338L
+        id = 492955672069898297L
     }
 }
