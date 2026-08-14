@@ -23,7 +23,7 @@ import java.util.Locale
 
 @Source
 abstract class Wurmz : HttpSource() {
-    override val supportsLatest = false
+    override val supportsLatest = true
 
     override fun headersBuilder() = super.headersBuilder()
         .add("Referer", "$baseUrl/")
