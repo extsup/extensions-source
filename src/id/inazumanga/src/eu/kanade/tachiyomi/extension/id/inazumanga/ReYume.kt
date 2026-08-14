@@ -24,14 +24,12 @@ abstract class ReYume : ZeistManga() {
     override val mangaDetailsSelectorInfoTitle = "dt"
     override val mangaDetailsSelectorInfoDescription = "dd"
 
-    override fun chapterListParse(response: Response): List<SChapter> {
-    return super.chapterListParse(response).map { chapter ->
+    override fun chapterListParse(response: Response): List<SChapter> = super.chapterListParse(response).map { chapter ->
         chapter.apply {
             val chapterIndex = name.indexOf("Chapter")
             if (chapterIndex > 0) name = name.substring(chapterIndex)
         }
     }
-}
 
     override val pageListSelector = ".separator"
     override fun pageListParse(response: Response): List<Page> {
