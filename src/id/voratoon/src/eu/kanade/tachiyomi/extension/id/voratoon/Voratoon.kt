@@ -1,0 +1,156 @@
+package eu.kanade.tachiyomi.extension.id.voratoon
+
+import eu.kanade.tachiyomi.source.model.FilterList
+import eu.kanade.tachiyomi.source.model.MangasPage
+import eu.kanade.tachiyomi.source.model.Page
+import eu.kanade.tachiyomi.source.model.SChapter
+import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.tachiyomi.source.model.SMangaUpdate
+import keiyoushi.annotation.Source
+import keiyoushi.network.get
+import keiyoushi.source.KeiSource
+import keiyoushi.utils.firstInstanceOrNull
+import keiyoushi.utils.parseAs
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
+
+@Source
+abstract class Voratoon : KeiSource() {
+
+    private const val API_URL = "https://api.voratoon.com"
+
+    override fun getMangaUrl(manga: SManga) = "$baseUrl/manga/${manga.url}"
+
+    override fun getChapterUrl(chapter: SChapter): String {
+        // url = "slug/index"
+        val (slug, index) = chapter.url.split("/", limit = 2)
+        return "$baseUrl/manga/$slug/chapter-$index"
+    }
+
+    // ---- Popular ----
+    
+    private const val PAGE_SIZE = 30
+
+    override suspend fun getPopularManga(page: Int): MangasPage {
+        val response = client.get(
+            "$API_URL/series".toHttpUrl().newBuilder()
+                .addQueryParameter("take", PAGE_SIZE.toString())
+                .addQueryParameter("page", page.toString())
+                .addQueryParameter("sort", "views")
+                .addQueryParameter("sortOrder", "desc")
+                .build().toString(),
+            headers,
+        )
+        val dto = response.parseAs<SeriesListDto>()
+        return MangasPage(dto.data.map { it.toSManga() }, dto.data.size >= PAGE_SIZE)
+    }
+
+    // ---- Latest ----
+
+    override suspend fun getLatestUpdates(page: Int): MangasPage {
+        val response = client.get(
+            "$API_URL/series".toHttpUrl().newBuilder()
+                .addQueryParameter("take", PAGE_SIZE.toString())
+                .addQueryParameter("page", page.toString())
+                .addQueryParameter("sort", "latest")
+                .addQueryParameter("sortOrder", "desc")
+                .build().toString(),
+            headers,
+        )
+        val dto = response.parseAs<SeriesListDto>()
+        return MangasPage(dto.data.map { it.toSManga() }, dto.data.size >= PAGE_SIZE)
+    }
+
+    // ---- Search ----
+
+    override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
+        val sort = filters.firstInstanceOrNull<SortFilter>()
+        val status = filters.firstInstanceOrNull<StatusFilter>()
+        val format = filters.firstInstanceOrNull<FormatFilter>()
+        val genre = filters.firstInstanceOrNull<GenreFilter>()
+
+        val url = "$API_URL/series".toHttpUrl().newBuilder().apply {
+            addQueryParameter("take", PAGE_SIZE.toString())
+            addQueryParameter("page", page.toString())
+            addQueryParameter("sort", sort?.apiValue ?: "latest")
+            addQueryParameter("sortOrder", "desc")
+            if (query.isNotBlank()) addQueryParameter("search", query)
+            status?.apiValue?.let { addQueryParameter("status", it) }
+            format?.apiValue?.let { addQueryParameter("format", it) }
+            genre?.selectedId?.let { addQueryParameter("genreId", it.toString()) }
+        }.build().toString()
+
+        val response = client.get(url, headers)
+        val dto = response.parseAs<SeriesListDto>()
+        return MangasPage(dto.data.map { it.toSManga() }, dto.data.size >= PAGE_SIZE)
+    }
+
+    // ---- Filter list ----
+
+    private var genreList: List<GenreItemDto> = emptyList()
+    override val supportsFilterFetching = true
+
+    override suspend fun fetchFilterData() = run {
+        val response = client.get("$API_URL/genres", headers)
+        response.parseAs<GenreListDto>().also { genreList = it.data }
+        // Return JsonNull — genres stored in genreList
+        kotlinx.serialization.json.JsonNull
+    }
+
+    override fun getFilterList(data: kotlinx.serialization.json.JsonElement?) = FilterList(
+        SortFilter(),
+        StatusFilter(),
+        FormatFilter(),
+        GenreFilter(genreList),
+    )
+
+    // ---- Manga Details ----
+
+    override suspend fun fetchMangaUpdate(
+        manga: SManga,
+        chapters: List<SChapter>,
+        fetchDetails: Boolean,
+        fetchChapters: Boolean,
+    ): SMangaUpdate {
+        val slug = manga.url
+
+        var updatedManga: SManga? = null
+        var updatedChapters: List<SChapter>? = null
+
+        if (fetchDetails) {
+            val response = client.get("$API_URL/series/$slug", headers)
+            val dto = response.parseAs<SeriesDetailDto>()
+            updatedManga = dto.item.toSManga().apply { url = slug }
+        }
+
+        if (fetchChapters) {
+            val response = client.get("$API_URL/series/$slug/chapters", headers)
+            val dto = response.parseAs<ChapterListDto>()
+            updatedChapters = dto.data.map { it.toSChapter(slug) }
+        }
+
+        return SMangaUpdate(updatedManga, updatedChapters)
+    }
+
+    // ---- Chapter Pages ----
+
+    override suspend fun getPageList(chapter: SChapter): List<Page> {
+        // chapter.url = "slug/index"
+        val (slug, index) = chapter.url.split("/", limit = 2)
+        val response = client.get("$API_URL/series/$slug/chapters/$index", headers)
+        val dto = response.parseAs<ChapterDetailDto>()
+        return dto.item.info.images.mapIndexed { i, url ->
+            Page(i, imageUrl = url)
+        }
+    }
+
+    // ---- URL deep link ----
+
+    override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
+        // https://voratoon.id/manga/some-slug
+        val slug = url.pathSegments.getOrNull(1) ?: return null
+        val response = client.get("$API_URL/series/$slug", headers)
+        val dto = response.parseAs<SeriesDetailDto>()
+        return dto.item.toSManga().apply { this.url = slug }
+    }
+}
