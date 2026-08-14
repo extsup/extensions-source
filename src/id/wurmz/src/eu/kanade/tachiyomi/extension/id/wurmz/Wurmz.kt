@@ -38,9 +38,15 @@ abstract class Wurmz : HttpSource() {
     override fun popularMangaParse(response: Response) = searchMangaParse(response)
 
     // ======================== Latest ========================
-    override fun latestUpdatesRequest(page: Int) = throw UnsupportedOperationException("Tidak didukung")
+    override fun latestUpdatesRequest(page: Int): Request {
+        val url = "$baseUrl/semua-komik".toHttpUrl().newBuilder().apply {
+            addQueryParameter("sort", "update")
+            if (page > 1) addQueryParameter("page", page.toString())
+        }.build()
+        return GET(url, headers)
+    }
 
-    override fun latestUpdatesParse(response: Response) = throw UnsupportedOperationException("Tidak didukung")
+    override fun latestUpdatesParse(response: Response) = searchMangaParse(response)
 
     // ======================== Search ========================
     override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
