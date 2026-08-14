@@ -28,7 +28,7 @@ abstract class Voratoon : KeiSource() {
     }
 
     // ---- Popular ----
-    
+
     private const val PAGE_SIZE = 30
 
     override suspend fun getPopularManga(page: Int): MangasPage {
