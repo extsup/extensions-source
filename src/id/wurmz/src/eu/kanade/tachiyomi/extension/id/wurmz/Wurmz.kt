@@ -14,6 +14,7 @@ import keiyoushi.utils.parseAs
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonObjectOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
@@ -117,9 +118,9 @@ abstract class Wurmz : HttpSource() {
             it is JsonObject && it["@type"]?.jsonPrimitive?.content == "ComicSeries"
         } ?: bodyString.extractNextJsRsc<kotlinx.serialization.json.JsonArray> {
             it is kotlinx.serialization.json.JsonArray &&
-                it.getOrNull(3)?.jsonObject?.get("dangerouslySetInnerHTML")
-                    ?.jsonObject?.get("__html")?.jsonPrimitive?.content?.contains("ComicSeries") == true
-        }?.getOrNull(3)?.jsonObject?.get("dangerouslySetInnerHTML")?.jsonObject?.get("__html")?.jsonPrimitive?.content?.parseAs<MangaDetailsDto>()
+                it.getOrNull(3)?.jsonObjectOrNull?.get("dangerouslySetInnerHTML")
+                    ?.jsonObjectOrNull?.get("__html")?.jsonPrimitive?.content?.contains("ComicSeries") == true
+        }?.getOrNull(3)?.jsonObjectOrNull?.get("dangerouslySetInnerHTML")?.jsonObjectOrNull?.get("__html")?.jsonPrimitive?.content?.parseAs<MangaDetailsDto>()
             ?: throw Exception("Gagal memproses detail komik")
 
         val statusText = bodyString.extractNextJsRsc<JsonObject> {
