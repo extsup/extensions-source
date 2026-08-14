@@ -22,7 +22,6 @@ abstract class KiryuuBeta : NatsuId() {
 
         return GET(url, headers)
     }
-
 }
 
 private class RateLimitInterceptor(
