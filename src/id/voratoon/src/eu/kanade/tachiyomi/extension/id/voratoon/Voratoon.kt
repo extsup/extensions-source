@@ -6,6 +6,9 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.decodeFromJsonElement
 import keiyoushi.annotation.Source
 import keiyoushi.network.get
 import keiyoushi.source.KeiSource
@@ -90,18 +93,25 @@ abstract class Voratoon : KeiSource() {
     private var genreList: List<GenreItemDto> = emptyList()
     override val supportsFilterFetching = true
 
-    override suspend fun fetchFilterData() = run {
+    override suspend fun fetchFilterData(): JsonElement = run {
         val response = client.get("$API_URL/genres", headers)
-        response.parseAs<GenreListDto>().also { genreList = it.data }
-        kotlinx.serialization.json.JsonNull
+        val dto = response.parseAs<GenreListDto>()
+        genreList = dto.data
+        Json.encodeToJsonElement(GenreListDto.serializer(), dto)
     }
 
-    override fun getFilterList(data: kotlinx.serialization.json.JsonElement?) = FilterList(
-        SortFilter(),
-        StatusFilter(),
-        FormatFilter(),
-        GenreFilter(genreList),
-    )
+    override fun getFilterList(data: JsonElement?): FilterList {
+        val genres = data?.let {
+            try { Json.decodeFromJsonElement(GenreListDto.serializer(), it).data }
+            catch (e: Exception) { genreList }
+        } ?: genreList
+        return FilterList(
+            SortFilter(),
+            StatusFilter(),
+            FormatFilter(),
+            GenreFilter(genres),
+        )
+    }
 
     // ---- Manga Details ----
 
