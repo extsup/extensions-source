@@ -39,9 +39,11 @@ jobs:
           persist-credentials: false
 
       - name: Get last successful CI commit
-        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5.0.1
-        with:
-          fallback-sha: 4b825dc642cb6eb9a060e54bf8d69288fbee4904 # empty tree
+        id: last-success
+        run: |
+          LAST_SUCCESS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/build_push.yml/runs?status=success&branch=main&per_page=1"             | python3 -c "import sys,json; runs=json.load(sys.stdin).get('workflow_runs',[]); print(runs[0]['head_sha'] if runs else '4b825dc642cb6eb9a060e54bf8d69288fbee4904')")
+          echo "NX_BASE=$LAST_SUCCESS" >> $GITHUB_ENV
+          echo "Last successful commit: $LAST_SUCCESS"
 
       - id: generate-matrices
         name: Create output matrices
@@ -60,8 +62,7 @@ jobs:
       - name: Checkout main branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          persist-credentials: true
-          token: ${{ secrets.BOT_PAT }}
+          persist-credentials: false
 
       - name: Set up Java
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
@@ -78,15 +79,21 @@ jobs:
         run: |
           echo ${{ secrets.SIGNING_KEY }} | base64 -d > signingkey.jks
 
-      - name: Apply Spotless formatting
+      - name: Run spotlessApply and Auto-commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ./gradlew spotlessApply
-
-      - name: Commit Spotless fixes
-        run: |
-          git config user.email "156378334+extsup@users.noreply.github.com"
-          git config user.name "extsup"
-          git diff --quiet || (git add -A && git commit -m "Apply spotless formatting [skip ci]" && git push)
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain)" ]; then
+            git add .
+            git commit -m "style: auto-apply spotless formatting [skip ci]"
+            git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
+            git push origin main
+          else
+            echo "No formatting changes to commit."
+          fi
 
       - name: Build extensions (${{ matrix.chunk.number }})
         env:
@@ -98,7 +105,7 @@ jobs:
           ./gradlew $MODULES
 
       - name: Upload APKs (${{ matrix.chunk.number }})
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0ac # v7.0.1
         if: "github.repository == 'extsup/extensions-source'"
         with:
           name: "individual-apks-${{ matrix.chunk.number }}"
@@ -115,16 +122,14 @@ jobs:
   publish:
     name: Publish extension repo
     needs: [prepare, build]
-    # Run whenever there's anything to publish, new/changed builds OR only deletions
     if: >-
       always() &&
       github.repository == 'extsup/extensions-source' &&
       needs.prepare.result == 'success' &&
       needs.build.result != 'failure' &&
-      needs.build.result != 'cancelled' &&
-      needs.prepare.outputs.delete != '[]'
+      needs.build.result != 'cancelled'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 60
     steps:
       - name: Download APK artifacts
         if: needs.build.result == 'success'
@@ -151,12 +156,14 @@ jobs:
       - name: Publish and deploy repo
         env:
           DELETE: ${{ needs.prepare.outputs.delete }}
+          REPO_BRANCH: repo
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
         run: |
           cd repo
           pip install protobuf
-          python ../main/.github/scripts/publish-repo.py "$DELETE"
+          python -u ../main/.github/scripts/publish-repo.py "$DELETE" "${{ github.sha }}"
           git config --global user.email "156378334+extsup@users.noreply.github.com"
-          git config --global user.name "extsup"
+          git config --global user.name "Extsup"
           git status
           if [ -n "$(git status --porcelain)" ]; then
             git add .
