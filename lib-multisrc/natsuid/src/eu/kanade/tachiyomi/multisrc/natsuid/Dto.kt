@@ -55,7 +55,7 @@ class Manga(
 @Serializable
 class Embedded(
     @SerialName("wp:featuredmedia")
-    val featuredMedia: List<FeaturedMedia>,
+    val featuredMedia: List<FeaturedMedia> = emptyList(),
     @SerialName("wp:term")
     private val terms: List<List<Term>>,
 ) {
