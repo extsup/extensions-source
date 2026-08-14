@@ -17,19 +17,19 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 @Source
 abstract class Voratoon : KeiSource() {
 
-    private const val API_URL = "https://api.voratoon.com"
+    companion object {
+        private const val API_URL = "https://api.voratoon.com"
+        private const val PAGE_SIZE = 30
+    }
 
     override fun getMangaUrl(manga: SManga) = "$baseUrl/manga/${manga.url}"
 
     override fun getChapterUrl(chapter: SChapter): String {
-        // url = "slug/index"
         val (slug, index) = chapter.url.split("/", limit = 2)
         return "$baseUrl/manga/$slug/chapter-$index"
     }
 
     // ---- Popular ----
-
-    private const val PAGE_SIZE = 30
 
     override suspend fun getPopularManga(page: Int): MangasPage {
         val response = client.get(
@@ -93,7 +93,6 @@ abstract class Voratoon : KeiSource() {
     override suspend fun fetchFilterData() = run {
         val response = client.get("$API_URL/genres", headers)
         response.parseAs<GenreListDto>().also { genreList = it.data }
-        // Return JsonNull — genres stored in genreList
         kotlinx.serialization.json.JsonNull
     }
 
@@ -112,21 +111,20 @@ abstract class Voratoon : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        val slug = manga.url
-
-        var updatedManga: SManga? = null
-        var updatedChapters: List<SChapter>? = null
-
-        if (fetchDetails) {
-            val response = client.get("$API_URL/series/$slug", headers)
+        val updatedManga = if (fetchDetails) {
+            val response = client.get("$API_URL/series/${manga.url}", headers)
             val dto = response.parseAs<SeriesDetailDto>()
-            updatedManga = dto.item.toSManga().apply { url = slug }
+            dto.item.toSManga().apply { url = manga.url }
+        } else {
+            manga
         }
 
-        if (fetchChapters) {
-            val response = client.get("$API_URL/series/$slug/chapters", headers)
+        val updatedChapters = if (fetchChapters) {
+            val response = client.get("$API_URL/series/${manga.url}/chapters", headers)
             val dto = response.parseAs<ChapterListDto>()
-            updatedChapters = dto.data.map { it.toSChapter(slug) }
+            dto.data.map { it.toSChapter(manga.url) }
+        } else {
+            chapters
         }
 
         return SMangaUpdate(updatedManga, updatedChapters)
@@ -135,7 +133,6 @@ abstract class Voratoon : KeiSource() {
     // ---- Chapter Pages ----
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        // chapter.url = "slug/index"
         val (slug, index) = chapter.url.split("/", limit = 2)
         val response = client.get("$API_URL/series/$slug/chapters/$index", headers)
         val dto = response.parseAs<ChapterDetailDto>()
@@ -147,7 +144,6 @@ abstract class Voratoon : KeiSource() {
     // ---- URL deep link ----
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
-        // https://voratoon.id/manga/some-slug
         val slug = url.pathSegments.getOrNull(1) ?: return null
         val response = client.get("$API_URL/series/$slug", headers)
         val dto = response.parseAs<SeriesDetailDto>()
