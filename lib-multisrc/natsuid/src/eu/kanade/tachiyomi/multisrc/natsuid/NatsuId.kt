@@ -216,7 +216,7 @@ abstract class NatsuId : HttpSource() {
 
     override fun searchMangaParse(response: Response): MangasPage {
         val document = Jsoup.parseBodyFragment(response.body!!.string(), baseUrl)
-        val slugs = document.select("div > a[href*=/manga/]:has(> img)").map {
+        val slugs = document.select("a[href*=/manga/]:has(> img)").map {
             it.absUrl("href").toHttpUrl().pathSegments[1]
         }.ifEmpty {
             return MangasPage(emptyList(), false)
