@@ -102,7 +102,7 @@ abstract class NatsuId : HttpSource() {
             filters.firstInstanceOrNull<StatusFilter>()?.checked.orEmpty().also {
                 addFormDataPart("status", it.toJsonString())
             }
-            val sort = filters.firstInstance<SortFilter>()
+            val sort = filters.firstInstanceOrNull<SortFilter>() ?: SortFilter()
             addFormDataPart("order", if (sort.isAscending) "asc" else "desc")
             addFormDataPart("orderby", sort.sort)
             addFormDataPart("query", query.trim())
