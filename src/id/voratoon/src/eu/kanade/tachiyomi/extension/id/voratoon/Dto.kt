@@ -40,6 +40,7 @@ class SeriesDataDto(
     val status: String? = null,
     val synopsis: String? = null,
     val format: String? = null,
+    val nativeTitle: String? = null,
     val genres: List<GenreItemDto>? = null,
 )
 
@@ -57,8 +58,14 @@ class SeriesDetailItemDto(
         title = info.title
         thumbnail_url = info.coverImage
         author = info.author
-        description = info.synopsis
-        genre = info.genres?.joinToString(", ") { it.data.name }
+        description = buildString {
+            info.nativeTitle?.let { append("Alt title: $it\n\n") }
+            info.synopsis?.let { append(it) }
+        }
+        genre = buildList {
+            info.genres?.forEach { add(it.data.name) }
+            info.format?.let { add(it.replaceFirstChar { c -> c.uppercase() }) }
+        }.joinToString(", ")
         status = when (info.status) {
             "ongoing" -> SManga.ONGOING
             "completed" -> SManga.COMPLETED
@@ -97,17 +104,21 @@ class ChapterItemDto(
     @SerialName("data") private val info: ChapterDataDto,
 ) {
     fun toSChapter(seriesSlug: String) = SChapter.create().apply {
-        // url stores "slug/index" for getPageList
-        url = "$seriesSlug/${info.index}"
-        name = info.title ?: "Chapter ${info.index}"
-        chapter_number = info.index.toFloat()
+        val indexStr = if (info.index % 1f == 0f) {
+            info.index.toInt().toString()
+        } else {
+            info.index.toString()
+        }
+        url = "$seriesSlug/$indexStr"
+        name = info.title ?: "Chapter $indexStr"
+        chapter_number = info.index
         date_upload = Instant.parseOrNull(createdAt)?.toEpochMilliseconds() ?: 0L
     }
 }
 
 @Serializable
 class ChapterDataDto(
-    val index: Int,
+    val index: Float,
     val title: String? = null,
 )
 

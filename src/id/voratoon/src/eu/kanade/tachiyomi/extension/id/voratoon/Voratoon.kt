@@ -22,7 +22,7 @@ abstract class Voratoon : KeiSource() {
         private const val PAGE_SIZE = 30
     }
 
-    override fun getMangaUrl(manga: SManga) = "$baseUrl/manga/${manga.url}"
+    override fun getMangaUrl(manga: SManga) = "$baseUrl/series/${manga.url}"
 
     override fun getChapterUrl(chapter: SChapter): String {
         val (slug, index) = chapter.url.split("/", limit = 2)
