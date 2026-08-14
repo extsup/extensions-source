@@ -34,8 +34,6 @@ abstract class Wurmz : HttpSource() {
 
     // ======================== Popular ========================
 
-    override fun popularMangaRequest(page: Int): Request = searchMangaRequest(page, "", FilterList())
-
     override fun popularMangaRequest(page: Int): Request {
         val url = "$baseUrl/populer".toHttpUrl().newBuilder().apply {
             addQueryParameter("range", "all")
