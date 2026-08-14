@@ -155,7 +155,9 @@ for info_file in ARTIFACTS_DIR.glob("**/extsup-source-info.json"):
         or release_assets.get(package_name) != assets
     )
     
-    # Write files
+    # Write files to tmp for GitHub Releases upload
+    repo_apk.write_bytes(apk_bytes)
+    repo_jar.write_bytes(jar_bytes)
     published_files.update((repo_apk, repo_jar))
     updated_release_assets[package_name] = assets
     
