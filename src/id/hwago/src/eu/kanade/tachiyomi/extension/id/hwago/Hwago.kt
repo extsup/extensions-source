@@ -45,19 +45,21 @@ abstract class Hwago : KeiSource() {
 
     override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
         if (query.isNotBlank()) {
-            val response = client.get("$baseUrl/api/search?q=${query.trim()}", headers)
-            val dto = response.parseAs<SearchResponseDto>()
-            return MangasPage(dto.results.map { it.toSManga(baseUrl) }, false)
+            val url = "$baseUrl/browse".toHttpUrl().newBuilder()
+                .addQueryParameter("q", query.trim())
+                .build()
+            val response = client.get(url, headers)
+            return parseMangaList(response.body.string())
         }
 
         val url = "$baseUrl/browse".toHttpUrl().newBuilder().apply {
             addQueryParameter("page", page.toString())
-            filters.filterIsInstance<UriFilter>().forEach { it.addToUri(this) }
-        }.build()
+            filters.filterIsInstance<UriFilter>().forEach { it.   addToUri(this) }
+    }.build()
 
-        val response = client.get(url, headers)
-        return parseMangaList(response.body.string())
-    }
+    val response = client.get(url, headers)
+    return parseMangaList(response.body.string())
+}
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
         val path = url.encodedPath
