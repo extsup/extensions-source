@@ -2,7 +2,6 @@ package eu.kanade.tachiyomi.extension.id.kiryuubeta
 
 import eu.kanade.tachiyomi.multisrc.natsuid.NatsuId
 import eu.kanade.tachiyomi.network.GET
-import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.SManga
 import keiyoushi.annotation.Source
 import okhttp3.Interceptor
@@ -24,7 +23,6 @@ abstract class KiryuuBeta : NatsuId() {
         return GET(url, headers)
     }
 
-    override fun getFilterList() = FilterList()
 }
 
 private class RateLimitInterceptor(
