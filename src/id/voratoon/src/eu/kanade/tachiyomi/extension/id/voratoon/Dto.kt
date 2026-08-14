@@ -59,8 +59,8 @@ class SeriesDetailItemDto(
         thumbnail_url = info.coverImage
         author = info.author
         description = buildString {
-            info.nativeTitle?.let { append("Alt title: $it\n\n") }
             info.synopsis?.let { append(it) }
+            info.nativeTitle?.let { append("\n\nAlt title: $it") }
         }
         genre = buildList {
             info.genres?.forEach { add(it.data.name) }
@@ -110,7 +110,7 @@ class ChapterItemDto(
             info.index.toString()
         }
         url = "$seriesSlug/$indexStr"
-        name = info.title ?: "Chapter $indexStr"
+        name = info.title?.takeIf { it.isNotBlank() } ?: "Chapter $indexStr"
         chapter_number = info.index
         date_upload = Instant.parseOrNull(createdAt)?.toEpochMilliseconds() ?: 0L
     }
