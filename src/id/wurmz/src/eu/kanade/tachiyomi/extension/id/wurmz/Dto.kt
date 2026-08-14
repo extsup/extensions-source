@@ -35,6 +35,7 @@ class AuthorDto(val name: String)
 
 @Serializable
 class ChapterListDto(
+    val sourceSlug: String? = null,
     val chapters: List<ChapterDto>,
 )
 

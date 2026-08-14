@@ -147,10 +147,10 @@ abstract class Wurmz : HttpSource() {
     override fun chapterListParse(response: Response): List<SChapter> {
         val bodyString = response.body.string()
         val chapterList = bodyString.extractNextJsRsc<ChapterListDto> {
-            it is JsonObject && it.containsKey("chapters")
+            it is JsonObject && it.containsKey("chapters") && it.containsKey("sourceSlug")
         } ?: throw Exception("Gagal memproses daftar chapter")
 
-        val slug = response.request.url.pathSegments.let { segments ->
+        val slug = chapterList.sourceSlug ?: response.request.url.pathSegments.let { segments ->
             val detailIdx = segments.indexOf("detail")
             "${segments[detailIdx + 1]}/${segments[detailIdx + 2]}"
         }
