@@ -23,8 +23,7 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Source
-abstract class VoratoonBeta :
-    HttpSource() {
+abstract class VoratoonBeta : HttpSource() {
 
     override val supportsLatest = true
 
