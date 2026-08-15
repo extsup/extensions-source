@@ -23,7 +23,6 @@ import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
-import kotlin.time.Instant
 
 @Source
 abstract class ShinigamiBeta :
@@ -159,9 +158,11 @@ abstract class ShinigamiBeta :
         return (0 until arr.length()).map { i ->
             val obj = arr.getJSONObject(i)
             SChapter.create().apply {
-                date_upload = Instant.parseOrNull(
-                    obj.optString("release_date", ""),
-                )?.toEpochMilliseconds() ?: 0L
+                date_upload = try {
+                    java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.ENGLISH)
+                        .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+                        .parse(obj.optString("release_date", ""))?.time ?: 0L
+                } catch (_: Exception) { 0L }
                 val num = obj.optDouble("chapter_number", 0.0)
                     .toString().removeSuffix(".0")
                 val title = obj.optString("chapter_title", "")
