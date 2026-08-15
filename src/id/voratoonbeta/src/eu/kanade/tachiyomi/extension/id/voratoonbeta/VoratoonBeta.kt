@@ -35,11 +35,10 @@ abstract class VoratoonBeta :
 
     private val apiUrl = "https://api.voratoon.com"
 
-    private val prefDomainKey = "pref_domain"
     private val preferences by getPreferencesLazy()
 
     override val baseUrl: String
-        get() = preferences.getString(prefDomainKey, super.baseUrl)!!
+        get() = preferences.getString(PREF_DOMAIN_KEY, super.baseUrl)!!
 
     override val client: OkHttpClient = network.client.newBuilder()
         .rateLimit(3)
@@ -188,7 +187,7 @@ abstract class VoratoonBeta :
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         EditTextPreference(screen.context).apply {
-            key = prefDomainKey
+            key = PREF_DOMAIN_KEY
             title = "Domain URL"
             summary = "Sekarang: $baseUrl"
             setDefaultValue(super.baseUrl)
@@ -196,7 +195,7 @@ abstract class VoratoonBeta :
             dialogMessage = "Masukkan Domain Baru"
             setOnPreferenceChangeListener { _, newValue ->
                 preferences.edit()
-                    .putString(prefDomainKey, (newValue as String).trimEnd('/'))
+                    .putString(PREF_DOMAIN_KEY, (newValue as String).trimEnd('/'))
                     .apply()
                 true
             }
@@ -215,7 +214,7 @@ abstract class VoratoonBeta :
     }
 
     companion object {
-        private const val prefDomainKey = "pref_domain"
+        private const val PREF_DOMAIN_KEY = "pref_domain"
         private const val PAGE_SIZE = 30
         val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.ENGLISH)
     }
