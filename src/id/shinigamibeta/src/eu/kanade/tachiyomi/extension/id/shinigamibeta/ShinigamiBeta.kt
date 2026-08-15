@@ -154,17 +154,21 @@ abstract class ShinigamiBeta :
 
     override fun chapterListRequest(manga: SManga) = GET("$apiUrl/v1/chapter/${manga.url}/list?page_size=3000", apiHeaders)
 
-    override fun chapterListParse(response: Response): List<SChapter> = response.parseAs<JsonObject>()["data"]!!.jsonArray.map { el ->
-        val obj = el.jsonObject
-        SChapter.create().apply {
-            date_upload = Instant.parseOrNull(
-                obj["release_date"]?.jsonPrimitive?.content ?: "",
-            )?.toEpochMilliseconds() ?: 0L
-            val num = obj["chapter_number"]?.jsonPrimitive?.doubleOrNull
-                ?.toString()?.removeSuffix(".0") ?: ""
-            val title = obj["chapter_title"]?.jsonPrimitive?.content
-            name = "Chapter $num${if (!title.isNullOrBlank()) " $title" else ""}".trim()
-            url = obj["chapter_id"]!!.jsonPrimitive.content
+    override fun chapterListParse(response: Response): List<SChapter> {
+        val root = org.json.JSONObject(response.body.string())
+        val arr = root.getJSONArray("data")
+        return (0 until arr.length()).map { i ->
+            val obj = arr.getJSONObject(i)
+            SChapter.create().apply {
+                date_upload = Instant.parseOrNull(
+                    obj.optString("release_date", ""),
+                )?.toEpochMilliseconds() ?: 0L
+                val num = obj.optDouble("chapter_number", 0.0)
+                    .toString().removeSuffix(".0")
+                val title = obj.optString("chapter_title", "")
+                name = "Chapter $num${if (title.isNotBlank()) " $title" else ""}".trim()
+                url = obj.getString("chapter_id")
+            }
         }
     }
 
