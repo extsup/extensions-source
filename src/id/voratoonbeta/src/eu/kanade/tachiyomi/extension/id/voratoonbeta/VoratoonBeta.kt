@@ -23,6 +23,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 @Source
 abstract class VoratoonBeta :
@@ -39,7 +41,7 @@ abstract class VoratoonBeta :
         get() = preferences.getString(PREF_DOMAIN_KEY, DEFAULT_DOMAIN)!!
 
     override val client: OkHttpClient = network.client.newBuilder()
-        .rateLimit(5)
+        .rateLimit(3)
         .build()
 
     override fun headersBuilder(): Headers.Builder = super.headersBuilder()
@@ -50,44 +52,53 @@ abstract class VoratoonBeta :
 
     // ============================== Helper Extensions ==============================
 
-    private fun JsonObject.str(key: String) = this[key]?.jsonPrimitive?.content.orEmpty()
+    private fun JsonObject.str(key: String) =
+        this[key]?.jsonPrimitive?.content.orEmpty()
 
-    private fun JsonObject.strOrNull(key: String) = this[key]?.jsonPrimitive?.content
+    private fun JsonObject.strOrNull(key: String) =
+        this[key]?.jsonPrimitive?.content
 
-    private fun JsonObject.int(key: String) = this[key]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
-
-    private fun JsonObject.toSManga() = SManga.create().apply {
-        title = str("title")
-        thumbnail_url = strOrNull("coverImage") ?: strOrNull("thumbnail")
-        url = str("slug")
+    // Series list item: root.data[].data.{title, slug, coverImage}
+    private fun JsonObject.toSManga(): SManga {
+        val d = this["data"]!!.jsonObject
+        return SManga.create().apply {
+            title = d.str("title")
+            thumbnail_url = d.strOrNull("coverImage")
+            url = d.str("slug")
+        }
     }
 
-    private fun buildSeriesUrl(page: Int, sort: String) = "$apiUrl/series".toHttpUrl().newBuilder()
-        .addQueryParameter("take", PAGE_SIZE.toString())
-        .addQueryParameter("page", page.toString())
-        .addQueryParameter("sort", sort)
-        .addQueryParameter("sortOrder", "desc")
-        .build()
+    private fun buildSeriesUrl(page: Int, sort: String) =
+        "$apiUrl/series".toHttpUrl().newBuilder()
+            .addQueryParameter("take", PAGE_SIZE.toString())
+            .addQueryParameter("page", page.toString())
+            .addQueryParameter("sort", sort)
+            .addQueryParameter("sortOrder", "desc")
+            .build()
 
+    // Series list/search response: root.data[] sama strukturnya
     private fun parseSeriesResponse(response: Response): MangasPage {
         val root = response.parseAs<JsonObject>()
         val data = root["data"]!!.jsonArray
         val mangas = data.map { it.jsonObject.toSManga() }
-        val hasMore = mangas.size >= PAGE_SIZE
-        return MangasPage(mangas, hasMore)
+        return MangasPage(mangas, mangas.size >= PAGE_SIZE)
     }
 
     // ============================== Popular ==============================
 
-    override fun popularMangaRequest(page: Int): Request = GET(buildSeriesUrl(page, "views").toString(), headers)
+    override fun popularMangaRequest(page: Int): Request =
+        GET(buildSeriesUrl(page, "views").toString(), headers)
 
-    override fun popularMangaParse(response: Response): MangasPage = parseSeriesResponse(response)
+    override fun popularMangaParse(response: Response): MangasPage =
+        parseSeriesResponse(response)
 
     // ============================== Latest ==============================
 
-    override fun latestUpdatesRequest(page: Int): Request = GET(buildSeriesUrl(page, "latest").toString(), headers)
+    override fun latestUpdatesRequest(page: Int): Request =
+        GET(buildSeriesUrl(page, "latest").toString(), headers)
 
-    override fun latestUpdatesParse(response: Response): MangasPage = parseSeriesResponse(response)
+    override fun latestUpdatesParse(response: Response): MangasPage =
+        parseSeriesResponse(response)
 
     // ============================== Search ==============================
 
@@ -101,37 +112,40 @@ abstract class VoratoonBeta :
         return GET(url.build().toString(), headers)
     }
 
-    override fun searchMangaParse(response: Response): MangasPage = parseSeriesResponse(response)
+    override fun searchMangaParse(response: Response): MangasPage =
+        parseSeriesResponse(response)
 
     override fun getFilterList(): FilterList = FilterList()
 
     // ============================== Details ==============================
+    // Detail: root.data.data.{title, synopsis, status, coverImage, ...}
 
     override fun getMangaUrl(manga: SManga) = "$baseUrl/series/${manga.url}"
 
-    override fun mangaDetailsRequest(manga: SManga): Request = GET("$apiUrl/series/${manga.url}", headers)
+    override fun mangaDetailsRequest(manga: SManga): Request =
+        GET("$apiUrl/series/${manga.url}", headers)
 
     override fun mangaDetailsParse(response: Response): SManga {
-        val item = response.parseAs<JsonObject>()["item"]!!.jsonObject
+        val item = response.parseAs<JsonObject>()["data"]!!.jsonObject["data"]!!.jsonObject
         return SManga.create().apply {
             title = item.str("title")
-            thumbnail_url = item.strOrNull("coverImage") ?: item.strOrNull("thumbnail")
+            thumbnail_url = item.strOrNull("coverImage")
             description = item.str("synopsis")
+            author = item.strOrNull("author")
             status = when (item.str("status").lowercase()) {
                 "ongoing" -> SManga.ONGOING
                 "completed" -> SManga.COMPLETED
                 "hiatus" -> SManga.ON_HIATUS
                 else -> SManga.UNKNOWN
             }
-            genre = item["genres"]?.jsonArray
-                ?.joinToString { it.jsonObject.str("name") }
-                .orEmpty()
         }
     }
 
     // ============================== Chapters ==============================
+    // Chapter list: root.data[].data.{index} + root.data[].createdAt
 
-    override fun chapterListRequest(manga: SManga): Request = GET("$apiUrl/series/${manga.url}/chapters", headers)
+    override fun chapterListRequest(manga: SManga): Request =
+        GET("$apiUrl/series/${manga.url}/chapters", headers)
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val root = response.parseAs<JsonObject>()
@@ -139,16 +153,17 @@ abstract class VoratoonBeta :
         val slug = response.request.url.pathSegments[1]
         return data.map { el ->
             val obj = el.jsonObject
-            val index = obj.int("index")
+            val index = obj["data"]!!.jsonObject["index"]!!.jsonPrimitive.content
             SChapter.create().apply {
                 url = "$slug/$index"
                 name = "Chapter $index"
-                date_upload = 0L
+                date_upload = dateFormat.tryParse(obj.strOrNull("createdAt"))
             }
         }
     }
 
     // ============================== Pages ==============================
+    // Pages: root.data.data.images[]
 
     override fun getChapterUrl(chapter: SChapter): String {
         val (slug, index) = chapter.url.split("/", limit = 2)
@@ -161,15 +176,15 @@ abstract class VoratoonBeta :
     }
 
     override fun pageListParse(response: Response): List<Page> {
-        val root = response.parseAs<JsonObject>()
-        val images = root["item"]!!.jsonObject["info"]!!.jsonObject["images"]?.jsonArray
-            ?: return emptyList()
+        val images = response.parseAs<JsonObject>()["data"]!!.jsonObject["data"]!!
+            .jsonObject["images"]?.jsonArray ?: return emptyList()
         return images.mapIndexed { index, el ->
             Page(index = index, imageUrl = el.jsonPrimitive.content)
         }
     }
 
-    override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
+    override fun imageUrlParse(response: Response): String =
+        throw UnsupportedOperationException()
 
     // ============================== Preferences ==============================
 
@@ -190,9 +205,17 @@ abstract class VoratoonBeta :
         }.also(screen::addPreference)
     }
 
+    // ============================== Helper ==============================
+
+    private fun SimpleDateFormat.tryParse(str: String?): Long {
+        if (str.isNullOrBlank()) return 0L
+        return try { parse(str)?.time ?: 0L } catch (_: Exception) { 0L }
+    }
+
     companion object {
         private const val PREF_DOMAIN_KEY = "pref_domain"
         private const val DEFAULT_DOMAIN = "https://voratoon.com"
         private const val PAGE_SIZE = 30
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.ENGLISH)
     }
 }
