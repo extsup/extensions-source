@@ -15,6 +15,7 @@ import keiyoushi.network.rateLimit
 import keiyoushi.utils.getPreferencesLazy
 import keiyoushi.utils.parseAs
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -152,27 +153,24 @@ abstract class ShinigamiBeta :
 
     override fun chapterListRequest(manga: SManga) = GET("$apiUrl/v1/chapter/${manga.url}/list?page_size=3000", apiHeaders)
 
-    override fun chapterListParse(response: Response): List<SChapter> {
-        val root = org.json.JSONObject(response.body.string())
-        val arr = root.getJSONArray("data")
-        return (0 until arr.length()).map { i ->
-            val obj = arr.getJSONObject(i)
+    override fun chapterListParse(response: Response): List<SChapter> =
+        response.parseAs<JsonObject>()["data"]!!.jsonArray.map { el ->
+            val obj = el.jsonObject
             SChapter.create().apply {
                 date_upload = try {
                     java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.ENGLISH)
                         .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
-                        .parse(obj.optString("release_date", ""))?.time ?: 0L
+                        .parse(obj["release_date"]?.jsonPrimitive?.content ?: "")?.time ?: 0L
                 } catch (_: Exception) {
                     0L
                 }
-                val num = obj.optDouble("chapter_number", 0.0)
-                    .toString().removeSuffix(".0")
-                val title = obj.optString("chapter_title", "")
-                name = "Chapter $num${if (title.isNotBlank()) " $title" else ""}".trim()
-                url = obj.getString("chapter_id")
+                val num = obj["chapter_number"]?.jsonPrimitive?.doubleOrNull
+                    ?.toString()?.removeSuffix(".0") ?: ""
+                val title = obj["chapter_title"]?.jsonPrimitive?.content
+                name = "Chapter $num${if (!title.isNullOrBlank()) " $title" else ""}".trim()
+                url = obj["chapter_id"]!!.jsonPrimitive.content
             }
         }
-    }
 
     // ============================== Pages =================================
 
