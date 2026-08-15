@@ -153,24 +153,23 @@ abstract class ShinigamiBeta :
 
     override fun chapterListRequest(manga: SManga) = GET("$apiUrl/v1/chapter/${manga.url}/list?page_size=3000", apiHeaders)
 
-    override fun chapterListParse(response: Response): List<SChapter> =
-        response.parseAs<JsonObject>()["data"]!!.jsonArray.map { el ->
-            val obj = el.jsonObject
-            SChapter.create().apply {
-                date_upload = try {
-                    java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.ENGLISH)
-                        .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
-                        .parse(obj["release_date"]?.jsonPrimitive?.content ?: "")?.time ?: 0L
-                } catch (_: Exception) {
-                    0L
-                }
-                val num = obj["chapter_number"]?.jsonPrimitive?.doubleOrNull
-                    ?.toString()?.removeSuffix(".0") ?: ""
-                val title = obj["chapter_title"]?.jsonPrimitive?.content
-                name = "Chapter $num${if (!title.isNullOrBlank()) " $title" else ""}".trim()
-                url = obj["chapter_id"]!!.jsonPrimitive.content
+    override fun chapterListParse(response: Response): List<SChapter> = response.parseAs<JsonObject>()["data"]!!.jsonArray.map { el ->
+        val obj = el.jsonObject
+        SChapter.create().apply {
+            date_upload = try {
+                java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.ENGLISH)
+                    .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+                    .parse(obj["release_date"]?.jsonPrimitive?.content ?: "")?.time ?: 0L
+            } catch (_: Exception) {
+                0L
             }
+            val num = obj["chapter_number"]?.jsonPrimitive?.doubleOrNull
+                ?.toString()?.removeSuffix(".0") ?: ""
+            val title = obj["chapter_title"]?.jsonPrimitive?.content
+            name = "Chapter $num${if (!title.isNullOrBlank()) " $title" else ""}".trim()
+            url = obj["chapter_id"]!!.jsonPrimitive.content
         }
+    }
 
     // ============================== Pages =================================
 
