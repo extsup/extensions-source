@@ -14,7 +14,6 @@ import keiyoushi.annotation.Source
 import keiyoushi.network.rateLimit
 import keiyoushi.utils.getPreferencesLazy
 import keiyoushi.utils.parseAs
-import keiyoushi.utils.tryParse
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
@@ -25,8 +24,7 @@ import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
-import java.text.SimpleDateFormat
-import java.util.Locale
+import kotlin.time.Instant
 
 @Source
 abstract class ShinigamiBeta :
@@ -39,11 +37,8 @@ abstract class ShinigamiBeta :
 
     private val preferences by getPreferencesLazy()
 
-    override val baseUrl: String
-        get() = preferences.getString(PREF_DOMAIN_KEY, PREF_DOMAIN_DEFAULT)!!
-
     private val resizeUrl: String
-        get() = preferences.getString(PREF_RESIZE_URL_KEY, "")!!
+        get() = preferences.getString("pref_resize_url", "")!!
 
     override val client = network.client.newBuilder()
         .rateLimit(3)
@@ -141,9 +136,9 @@ abstract class ShinigamiBeta :
                 append(
                     dto["description"]?.jsonPrimitive?.content
                         ?.replace("&#x20;", "")
-                        ?.replace(Regex("""[\\*]+"""), "")
-                        ?.replace(Regex("<([^>]+)>"), "$1")
-                        ?.replace(Regex("""\n{2,}"""), "\n\n")
+                        ?.replace(descCleanStars, "")
+                        ?.replace(descCleanTags, "$1")
+                        ?.replace(descCleanNewlines, "\n\n")
                         ?.trim()
                         .orEmpty(),
                 )
@@ -157,19 +152,23 @@ abstract class ShinigamiBeta :
 
     // ============================== Chapters ==============================
 
-    override fun chapterListRequest(manga: SManga) = GET("$apiUrl/v1/chapter/${manga.url}/list?page_size=3000", apiHeaders)
+    override fun chapterListRequest(manga: SManga) =
+        GET("$apiUrl/v1/chapter/${manga.url}/list?page_size=3000", apiHeaders)
 
-    override fun chapterListParse(response: Response): List<SChapter> = response.parseAs<JsonObject>()["data"]!!.jsonArray.map { el ->
-        val obj = el.jsonObject
-        SChapter.create().apply {
-            date_upload = dateFormat.tryParse(obj["release_date"]?.jsonPrimitive?.content)
-            val num = obj["chapter_number"]?.jsonPrimitive?.doubleOrNull
-                ?.toString()?.replace(".0", "") ?: ""
-            val title = obj["chapter_title"]?.jsonPrimitive?.content
-            name = "Chapter $num${if (!title.isNullOrBlank()) " $title" else ""}".trim()
-            url = obj["chapter_id"]!!.jsonPrimitive.content
+    override fun chapterListParse(response: Response): List<SChapter> =
+        response.parseAs<JsonObject>()["data"]!!.jsonArray.map { el ->
+            val obj = el.jsonObject
+            SChapter.create().apply {
+                date_upload = Instant.parseOrNull(
+                    obj["release_date"]?.jsonPrimitive?.content ?: "",
+                )?.toEpochMilliseconds() ?: 0L
+                val num = obj["chapter_number"]?.jsonPrimitive?.doubleOrNull
+                    ?.toString()?.removeSuffix(".0") ?: ""
+                val title = obj["chapter_title"]?.jsonPrimitive?.content
+                name = "Chapter $num${if (!title.isNullOrBlank()) " $title" else ""}".trim()
+                url = obj["chapter_id"]!!.jsonPrimitive.content
+            }
         }
-    }
 
     // ============================== Pages =================================
 
@@ -208,32 +207,19 @@ abstract class ShinigamiBeta :
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         EditTextPreference(screen.context).apply {
-            key = PREF_DOMAIN_KEY
-            title = "Domain URL"
-            summary = "Sekarang: $baseUrl"
-            setDefaultValue(PREF_DOMAIN_DEFAULT)
-            dialogTitle = "Masukkan domain"
-            dialogMessage = "Contoh: https://11.shinigami.asia"
-            setOnPreferenceChangeListener { _, newValue ->
-                preferences.edit().putString(PREF_DOMAIN_KEY, (newValue as String).trimEnd('/')).apply()
-                true
-            }
-        }.also(screen::addPreference)
-
-        EditTextPreference(screen.context).apply {
-            key = PREF_RESIZE_URL_KEY
+            key = "pref_resize_url"
             title = "URL Resize"
             summary = "URL Resize. Kosongkan untuk nonaktifkan."
             dialogTitle = "Masukkan prefix URL resize"
             dialogMessage = "Contoh: https://resize.example.com?url="
-            setOnPreferenceChangeListener { _, newValue ->
-                preferences.edit().putString(PREF_RESIZE_URL_KEY, newValue as String).apply()
-                true
-            }
         }.also(screen::addPreference)
     }
 
     companion object {
+        private val descCleanStars = Regex("""[\\*]+""")
+        private val descCleanTags = Regex("<([^>]+)>")
+        private val descCleanNewlines = Regex("""\n{2,}""")
+
         private val BLACKLISTED_GENRES = setOf(
             "josei-genre",
             "smut",
@@ -248,9 +234,5 @@ abstract class ShinigamiBeta :
             "shoujo",
             "sports",
         )
-        private const val PREF_DOMAIN_KEY = "pref_domain"
-        private const val PREF_DOMAIN_DEFAULT = "https://11.shinigami.asia"
-        private const val PREF_RESIZE_URL_KEY = "pref_resize_url"
-        val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ENGLISH)
     }
 }

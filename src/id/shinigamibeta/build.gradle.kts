@@ -12,6 +12,8 @@ keiyoushi {
 
     source {
         lang = "id"
-        baseUrl = "https://11.shinigami.asia"
+        baseUrl {
+            custom("https://11.shinigami.asia")
+        }
     }
 }
