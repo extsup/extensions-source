@@ -52,11 +52,9 @@ abstract class VoratoonBeta :
 
     // ============================== Helper Extensions ==============================
 
-    private fun JsonObject.str(key: String) =
-        this[key]?.jsonPrimitive?.content.orEmpty()
+    private fun JsonObject.str(key: String) = this[key]?.jsonPrimitive?.content.orEmpty()
 
-    private fun JsonObject.strOrNull(key: String) =
-        this[key]?.jsonPrimitive?.content
+    private fun JsonObject.strOrNull(key: String) = this[key]?.jsonPrimitive?.content
 
     // Series list item: root.data[].data.{title, slug, coverImage}
     private fun JsonObject.toSManga(): SManga {
@@ -68,13 +66,12 @@ abstract class VoratoonBeta :
         }
     }
 
-    private fun buildSeriesUrl(page: Int, sort: String) =
-        "$apiUrl/series".toHttpUrl().newBuilder()
-            .addQueryParameter("take", PAGE_SIZE.toString())
-            .addQueryParameter("page", page.toString())
-            .addQueryParameter("sort", sort)
-            .addQueryParameter("sortOrder", "desc")
-            .build()
+    private fun buildSeriesUrl(page: Int, sort: String) = "$apiUrl/series".toHttpUrl().newBuilder()
+        .addQueryParameter("take", PAGE_SIZE.toString())
+        .addQueryParameter("page", page.toString())
+        .addQueryParameter("sort", sort)
+        .addQueryParameter("sortOrder", "desc")
+        .build()
 
     // Series list/search response: root.data[] sama strukturnya
     private fun parseSeriesResponse(response: Response): MangasPage {
@@ -86,19 +83,15 @@ abstract class VoratoonBeta :
 
     // ============================== Popular ==============================
 
-    override fun popularMangaRequest(page: Int): Request =
-        GET(buildSeriesUrl(page, "views").toString(), headers)
+    override fun popularMangaRequest(page: Int): Request = GET(buildSeriesUrl(page, "views").toString(), headers)
 
-    override fun popularMangaParse(response: Response): MangasPage =
-        parseSeriesResponse(response)
+    override fun popularMangaParse(response: Response): MangasPage = parseSeriesResponse(response)
 
     // ============================== Latest ==============================
 
-    override fun latestUpdatesRequest(page: Int): Request =
-        GET(buildSeriesUrl(page, "latest").toString(), headers)
+    override fun latestUpdatesRequest(page: Int): Request = GET(buildSeriesUrl(page, "latest").toString(), headers)
 
-    override fun latestUpdatesParse(response: Response): MangasPage =
-        parseSeriesResponse(response)
+    override fun latestUpdatesParse(response: Response): MangasPage = parseSeriesResponse(response)
 
     // ============================== Search ==============================
 
@@ -112,8 +105,7 @@ abstract class VoratoonBeta :
         return GET(url.build().toString(), headers)
     }
 
-    override fun searchMangaParse(response: Response): MangasPage =
-        parseSeriesResponse(response)
+    override fun searchMangaParse(response: Response): MangasPage = parseSeriesResponse(response)
 
     override fun getFilterList(): FilterList = FilterList()
 
@@ -122,8 +114,7 @@ abstract class VoratoonBeta :
 
     override fun getMangaUrl(manga: SManga) = "$baseUrl/series/${manga.url}"
 
-    override fun mangaDetailsRequest(manga: SManga): Request =
-        GET("$apiUrl/series/${manga.url}", headers)
+    override fun mangaDetailsRequest(manga: SManga): Request = GET("$apiUrl/series/${manga.url}", headers)
 
     override fun mangaDetailsParse(response: Response): SManga {
         val item = response.parseAs<JsonObject>()["data"]!!.jsonObject["data"]!!.jsonObject
@@ -144,8 +135,7 @@ abstract class VoratoonBeta :
     // ============================== Chapters ==============================
     // Chapter list: root.data[].data.{index} + root.data[].createdAt
 
-    override fun chapterListRequest(manga: SManga): Request =
-        GET("$apiUrl/series/${manga.url}/chapters", headers)
+    override fun chapterListRequest(manga: SManga): Request = GET("$apiUrl/series/${manga.url}/chapters", headers)
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val root = response.parseAs<JsonObject>()
@@ -183,8 +173,7 @@ abstract class VoratoonBeta :
         }
     }
 
-    override fun imageUrlParse(response: Response): String =
-        throw UnsupportedOperationException()
+    override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 
     // ============================== Preferences ==============================
 
@@ -209,7 +198,11 @@ abstract class VoratoonBeta :
 
     private fun SimpleDateFormat.tryParse(str: String?): Long {
         if (str.isNullOrBlank()) return 0L
-        return try { parse(str)?.time ?: 0L } catch (_: Exception) { 0L }
+        return try {
+            parse(str)?.time ?: 0L
+        } catch (_: Exception) {
+            0L
+        }
     }
 
     companion object {
