@@ -241,7 +241,7 @@ abstract class NatsuId : HttpSource() {
             details[slug]?.toSManga()
         }
 
-        val hasNextPage = document.selectFirst("button:has(svg)") != null
+        val hasNextPage = document.selectFirst("button:has(svg)") != null && document.selectFirst(".col-span-full") == null
 
         return MangasPage(mangas, hasNextPage)
     }
