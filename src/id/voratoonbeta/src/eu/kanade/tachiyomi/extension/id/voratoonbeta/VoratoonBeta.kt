@@ -35,10 +35,11 @@ abstract class VoratoonBeta :
 
     private val apiUrl = "https://api.voratoon.com"
 
+    private val prefDomainKey = "pref_domain"
     private val preferences by getPreferencesLazy()
 
     override val baseUrl: String
-        get() = preferences.getString(PREF_DOMAIN_KEY, DEFAULT_DOMAIN)!!
+        get() = preferences.getString(prefDomainKey, super.baseUrl)!!
 
     override val client: OkHttpClient = network.client.newBuilder()
         .rateLimit(3)
@@ -121,7 +122,9 @@ abstract class VoratoonBeta :
         return SManga.create().apply {
             title = item.str("title")
             thumbnail_url = item.strOrNull("coverImage")
-            description = item.str("synopsis")
+            val synopsis = item.str("synopsis")
+            val altTitle = item.strOrNull("nativeTitle")
+            description = if (!altTitle.isNullOrBlank()) "$synopsis\n\nAlt Title: $altTitle" else synopsis
             author = item.strOrNull("author")
             status = when (item.str("status").lowercase()) {
                 "ongoing" -> SManga.ONGOING
@@ -129,6 +132,12 @@ abstract class VoratoonBeta :
                 "hiatus" -> SManga.ON_HIATUS
                 else -> SManga.UNKNOWN
             }
+            val genres = item["genres"]?.jsonArray
+                ?.mapNotNull { it.jsonObject["data"]?.jsonObject?.strOrNull("name") }
+                ?: emptyList()
+            val format = item.strOrNull("format")
+                ?.replaceFirstChar { it.uppercase() }
+            genre = (genres + listOfNotNull(format)).joinToString()
         }
     }
 
@@ -179,15 +188,15 @@ abstract class VoratoonBeta :
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         EditTextPreference(screen.context).apply {
-            key = PREF_DOMAIN_KEY
+            key = prefDomainKey
             title = "Domain URL"
             summary = "Sekarang: $baseUrl"
-            setDefaultValue(DEFAULT_DOMAIN)
+            setDefaultValue(super.baseUrl)
             dialogTitle = "Masukkan domain"
             dialogMessage = "Masukkan Domain Baru"
             setOnPreferenceChangeListener { _, newValue ->
                 preferences.edit()
-                    .putString(PREF_DOMAIN_KEY, (newValue as String).trimEnd('/'))
+                    .putString(prefDomainKey, (newValue as String).trimEnd('/'))
                     .apply()
                 true
             }
@@ -206,8 +215,7 @@ abstract class VoratoonBeta :
     }
 
     companion object {
-        private const val PREF_DOMAIN_KEY = "pref_domain"
-        private const val DEFAULT_DOMAIN = "https://voratoon.com"
+        private const val prefDomainKey = "pref_domain"
         private const val PAGE_SIZE = 30
         val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.ENGLISH)
     }
