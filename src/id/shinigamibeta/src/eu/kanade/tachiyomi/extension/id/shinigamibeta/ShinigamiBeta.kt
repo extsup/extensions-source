@@ -162,7 +162,9 @@ abstract class ShinigamiBeta :
                     java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.ENGLISH)
                         .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
                         .parse(obj.optString("release_date", ""))?.time ?: 0L
-                } catch (_: Exception) { 0L }
+                } catch (_: Exception) {
+                    0L
+                }
                 val num = obj.optDouble("chapter_number", 0.0)
                     .toString().removeSuffix(".0")
                 val title = obj.optString("chapter_title", "")
