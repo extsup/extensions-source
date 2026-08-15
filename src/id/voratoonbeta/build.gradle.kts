@@ -11,7 +11,9 @@ keiyoushi {
     libVersion = "1.4"
 
     source {
-        baseUrl = "https://v1.voratoon.com"
+        baseUrl {
+            custom("https://v1.voratoon.com")
+        }
         lang = "id"
     }
 }
