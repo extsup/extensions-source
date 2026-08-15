@@ -219,7 +219,7 @@ abstract class NatsuId : HttpSource() {
         val slugs = document.select("a[href*=/manga/]:has(> img)").map {
             it.absUrl("href").toHttpUrl().pathSegments[1]
         }.ifEmpty {
-            return MangasPage(emptyList(), false)
+            throw Exception("DEBUG empty: body=${document.body().text().take(100)}")
         }
 
         val url = "$baseUrl/wp-json/wp/v2/manga".toHttpUrl().newBuilder().apply {
