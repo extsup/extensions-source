@@ -57,13 +57,13 @@ abstract class KiryuuBeta : HttpSource() {
 
     // ============================== Popular ===============================
 
-    override fun popularMangaRequest(page: Int) = searchMangaRequest(page, "", FilterList())
+    override fun popularMangaRequest(page: Int) = buildRequest(page, orderby = "popularity")
 
     override fun popularMangaParse(response: Response) = searchMangaParse(response)
 
     // ============================== Latest ================================
 
-    override fun latestUpdatesRequest(page: Int) = searchMangaRequest(page, "", FilterList())
+    override fun latestUpdatesRequest(page: Int) = buildRequest(page, orderby = "latest")
 
     override fun latestUpdatesParse(response: Response) = searchMangaParse(response)
 
@@ -75,7 +75,7 @@ abstract class KiryuuBeta : HttpSource() {
         super.fetchSearchManga(page, query, filters)
     }
 
-    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
+    private fun buildRequest(page: Int, query: String = "", orderby: String = "popularity"): Request {
         val body = MultipartBody.Builder().apply {
             setType(MultipartBody.FORM)
             addFormDataPart("nonce", getNonce())
@@ -90,11 +90,14 @@ abstract class KiryuuBeta : HttpSource() {
             addFormDataPart("type", "[]")
             addFormDataPart("status", "[]")
             addFormDataPart("order", "desc")
-            addFormDataPart("orderby", "popularity")
+            addFormDataPart("orderby", orderby)
             addFormDataPart("query", query.trim())
         }.build()
         return POST("$baseUrl/wp-admin/admin-ajax.php?action=advanced_search", headers, body)
     }
+
+    override fun searchMangaRequest(page: Int, query: String, filters: FilterList) =
+        buildRequest(page, query)
 
     override fun searchMangaParse(response: Response): MangasPage {
         val document = Jsoup.parseBodyFragment(response.body!!.string(), baseUrl)
