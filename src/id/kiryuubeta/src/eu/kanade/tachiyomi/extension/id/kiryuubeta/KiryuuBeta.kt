@@ -96,8 +96,7 @@ abstract class KiryuuBeta : HttpSource() {
         return POST("$baseUrl/wp-admin/admin-ajax.php?action=advanced_search", headers, body)
     }
 
-    override fun searchMangaRequest(page: Int, query: String, filters: FilterList) =
-        buildRequest(page, query)
+    override fun searchMangaRequest(page: Int, query: String, filters: FilterList) = buildRequest(page, query)
 
     override fun searchMangaParse(response: Response): MangasPage {
         val document = Jsoup.parseBodyFragment(response.body!!.string(), baseUrl)
