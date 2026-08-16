@@ -249,9 +249,7 @@ abstract class KiryuuBeta : HttpSource() {
             this.title = Parser.unescapeEntities(title, false)
             description = buildString {
                 append(Jsoup.parseBodyFragment(content).wholeText())
-                if (appendId) append("
-
-ID: $id")
+                if (appendId) append("ID: $id")
             }
             thumbnail_url = embedded?.get("wp:featuredmedia")?.jsonArray
                 ?.firstOrNull()?.jsonObject?.get("source_url")?.jsonPrimitive?.contentOrNull
