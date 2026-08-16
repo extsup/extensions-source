@@ -9,7 +9,6 @@ keiyoushi {
     versionCode = 2
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"
-    theme = "natsuid"
 
     source {
         lang = "id"
