@@ -15,5 +15,6 @@ keiyoushi {
         lang = "id"
         baseUrl {
             custom("https://07.ikiru.wtf")
+        }
     }
 }
