@@ -48,7 +48,11 @@ abstract class KiryuuBeta : HttpSource() {
 
     private fun tryParseDate(str: String?): Long {
         if (str.isNullOrBlank()) return 0L
-        return try { dateFormat.parse(str)!!.time } catch (_: Exception) { 0L }
+        return try {
+            dateFormat.parse(str)!!.time
+        } catch (_: Exception) {
+            0L
+        }
     }
 
     // ============================== Popular ===============================
@@ -65,9 +69,11 @@ abstract class KiryuuBeta : HttpSource() {
 
     // ============================== Search ================================
 
-    override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> =
-        if (query.startsWith("https://")) deepLink(query)
-        else super.fetchSearchManga(page, query, filters)
+    override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> = if (query.startsWith("https://")) {
+        deepLink(query)
+    } else {
+        super.fetchSearchManga(page, query, filters)
+    }
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         val body = MultipartBody.Builder().apply {
@@ -180,10 +186,9 @@ abstract class KiryuuBeta : HttpSource() {
 
     // ============================== Pages =================================
 
-    override fun pageListParse(response: Response): List<Page> =
-        response.asJsoup().select("main .relative section > img").mapIndexed { idx, img ->
-            Page(idx, imageUrl = img.absUrl("src"))
-        }
+    override fun pageListParse(response: Response): List<Page> = response.asJsoup().select("main .relative section > img").mapIndexed { idx, img ->
+        Page(idx, imageUrl = img.absUrl("src"))
+    }
 
     override fun imageUrlParse(response: Response) = ""
 
