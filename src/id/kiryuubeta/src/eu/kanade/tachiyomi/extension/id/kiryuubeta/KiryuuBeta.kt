@@ -63,7 +63,7 @@ abstract class KiryuuBeta : HttpSource() {
 
     // ============================== Latest ================================
 
-    override fun latestUpdatesRequest(page: Int) = buildRequest(page, orderby = "latest")
+    override fun latestUpdatesRequest(page: Int) = buildRequest(page, orderby = "updated")
 
     override fun latestUpdatesParse(response: Response) = searchMangaParse(response)
 
@@ -79,17 +79,7 @@ abstract class KiryuuBeta : HttpSource() {
         val body = MultipartBody.Builder().apply {
             setType(MultipartBody.FORM)
             addFormDataPart("nonce", getNonce())
-            addFormDataPart("inclusion", "OR")
-            addFormDataPart("exclusion", "OR")
             addFormDataPart("page", page.toString())
-            addFormDataPart("genre", "[]")
-            addFormDataPart("genre_exclude", "[]")
-            addFormDataPart("author", "[]")
-            addFormDataPart("artist", "[]")
-            addFormDataPart("project", "0")
-            addFormDataPart("type", "[]")
-            addFormDataPart("status", "[]")
-            addFormDataPart("order", "desc")
             addFormDataPart("orderby", orderby)
             addFormDataPart("query", query.trim())
         }.build()
