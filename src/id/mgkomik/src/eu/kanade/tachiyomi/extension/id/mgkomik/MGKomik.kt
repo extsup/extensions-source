@@ -1,17 +1,26 @@
 package eu.kanade.tachiyomi.extension.id.mgkomik
 
+import android.annotation.SuppressLint
+import android.os.Handler
+import android.os.Looper
 import android.webkit.CookieManager
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import eu.kanade.tachiyomi.multisrc.madara.Madara
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import keiyoushi.annotation.Source
 import keiyoushi.network.rateLimit
+import keiyoushi.utils.applicationContext
 import okhttp3.FormBody
 import okhttp3.Request
 import org.jsoup.nodes.Document
 import java.text.SimpleDateFormat
 import java.util.Locale
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 @Source
 abstract class MGKomik : Madara() {
@@ -26,7 +35,19 @@ abstract class MGKomik : Madara() {
         set("Sec-CH-UA-Model", "\"\"")
     }
 
+    private val sessionWarmedUp = AtomicBoolean(false)
+
     override val client = network.client.newBuilder()
+        .addInterceptor { chain ->
+            val response = chain.proceed(chain.request())
+            if (response.code == 403 && !sessionWarmedUp.get()) {
+                response.close()
+                warmupWebViewSession()
+                chain.proceed(chain.request())
+            } else {
+                response
+            }
+        }
         .addInterceptor { chain ->
             val request = chain.request()
             val cookies = CookieManager.getInstance().getCookie(baseUrl)
@@ -62,6 +83,45 @@ abstract class MGKomik : Madara() {
         }
         .rateLimit(1)
         .build()
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun warmupWebViewSession() {
+        if (!sessionWarmedUp.compareAndSet(false, true)) return
+
+        val latch = CountDownLatch(1)
+        val mainHandler = Handler(Looper.getMainLooper())
+
+        mainHandler.post {
+            val wv = WebView(applicationContext)
+            wv.settings.javaScriptEnabled = true
+            wv.settings.domStorageEnabled = true
+
+            val cm = CookieManager.getInstance()
+            cm.setAcceptCookie(true)
+            cm.setAcceptThirdPartyCookies(wv, true)
+
+            wv.webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    mainHandler.postDelayed({
+                        runCatching {
+                            view?.stopLoading()
+                            view?.destroy()
+                        }
+                        latch.countDown()
+                    }, 3000L)
+                }
+            }
+            wv.loadUrl("$baseUrl/")
+        }
+
+        try {
+            if (!latch.await(15, TimeUnit.SECONDS)) {
+                sessionWarmedUp.set(false)
+            }
+        } catch (_: InterruptedException) {
+            sessionWarmedUp.set(false)
+        }
+    }
 
     override fun popularMangaRequest(page: Int): Request {
         val url = "$baseUrl/$mangaSubString${if (page > 1) "/page/$page/" else "/"}?m_orderby=trending"
