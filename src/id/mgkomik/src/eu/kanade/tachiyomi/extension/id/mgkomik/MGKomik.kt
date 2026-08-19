@@ -6,6 +6,7 @@ import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import keiyoushi.annotation.Source
 import keiyoushi.network.rateLimit
+import android.webkit.CookieManager
 import okhttp3.FormBody
 import okhttp3.Request
 import org.jsoup.nodes.Document
@@ -25,32 +26,42 @@ abstract class MGKomik : Madara() {
         set("Sec-CH-UA-Model", "\"\"")
     }
 
-    override val client = network.cloudflareClient.newBuilder()
+    override val client = network.client.newBuilder()
         .addInterceptor { chain ->
             val request = chain.request()
-            val path = request.url.encodedPath
-            val isAjax = path.contains("admin-ajax.php") ||
-                path.contains("wp-json") ||
-                path.endsWith("/ajax/chapters")
-            if (isAjax) {
-                chain.proceed(
-                    request.newBuilder()
-                        .header("X-Requested-With", "XMLHttpRequest")
-                        .header("Sec-Fetch-Dest", "empty")
-                        .header("Sec-Fetch-Mode", "cors")
-                        .header("Sec-Fetch-Site", "same-origin")
-                        .header("Origin", baseUrl)
-                        .header("Priority", "u=1, i")
-                        .removeHeader("Sec-Fetch-User")
-                        .removeHeader("Upgrade-Insecure-Requests")
-                        .build(),
-                )
-            } else {
-                chain.proceed(request)
-            }
+            val cookies = CookieManager.getInstance().getCookie(baseUrl)
+            val newRequest = if (cookies != null) {
+            request.newBuilder().header("Cookie", cookies).build()
+        } else {
+            request
         }
-        .rateLimit(3)
-        .build()
+        chain.proceed(newRequest)
+    }
+    .addInterceptor { chain ->
+        val request = chain.request()
+        val path = request.url.encodedPath
+        val isAjax = path.contains("admin-ajax.php") ||
+            path.contains("wp-json") ||
+            path.endsWith("/ajax/chapters")
+        if (isAjax) {
+            chain.proceed(
+                request.newBuilder()
+                    .header("X-Requested-With", "XMLHttpRequest")
+                    .header("Sec-Fetch-Dest", "empty")
+                    .header("Sec-Fetch-Mode", "cors")
+                    .header("Sec-Fetch-Site", "same-origin")
+                    .header("Origin", baseUrl)
+                    .header("Priority", "u=1, i")
+                    .removeHeader("Sec-Fetch-User")
+                    .removeHeader("Upgrade-Insecure-Requests")
+                    .build(),
+            )
+        } else {
+            chain.proceed(request)
+        }
+    }
+    .rateLimit(1)
+    .build()
 
     override fun popularMangaRequest(page: Int): Request {
         val url = "$baseUrl/$mangaSubString${if (page > 1) "/page/$page/" else "/"}?m_orderby=trending"
