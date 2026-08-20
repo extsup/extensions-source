@@ -39,12 +39,20 @@ class ComicItem(
         url = slug
         title = this@ComicItem.title
         thumbnail_url = coverUrl
-        description = synopsis ?: alt
+        description = buildString {
+            synopsis?.let { append(it) }
+            alt?.let {
+                if (synopsis != null) append("\n\n")
+                append("Judul Alternatif: $it")
+            }
+        }
         genre = buildList {
-            type?.let { add(it) }
             genres?.forEach { add(it) }
+            type?.let { add(it) }
         }.joinToString()
         author = this@ComicItem.author
+        artist = this@ComicItem.artist
+        artist = this@ComicItem.artist
         this.status = when (this@ComicItem.status?.lowercase()) {
             "ongoing" -> SManga.ONGOING
             "completed" -> SManga.COMPLETED

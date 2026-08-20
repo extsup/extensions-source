@@ -13,12 +13,14 @@ import keiyoushi.source.KeiSource
 import keiyoushi.utils.parseAs
 import okhttp3.HttpUrl.Companion.toHttpUrl
 
-private const val API_BASE = "https://01.komiku.asia/api/v2"
-private const val READER_BASE = "https://api.komiku.asia/read/id"
-private const val PAGE_SIZE = 20
 
 @Source
 abstract class KomikuCom : KeiSource() {
+
+    private val API_BASE = "https://01.komiku.asia/api/v2"
+    private val READER_BASE = "https://api.komiku.asia/read/id"
+    private val PAGE_SIZE = 20
+
 
     // ── Popular ───────────────────────────────────────────────────────────────
 
@@ -99,7 +101,6 @@ abstract class KomikuCom : KeiSource() {
             client.get("$API_BASE/comics/${detail.id}/chapters", headers)
                 .parseAs<List<ChapterItem>>()
                 .map { it.toSChapter(manga.url) }
-                .reversed()
         } else {
             null
         }
@@ -113,24 +114,24 @@ abstract class KomikuCom : KeiSource() {
     // ── Pages ─────────────────────────────────────────────────────────────────
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        // url format encoded in Dto: {comicSlug}|{chapterId}|{chapterNumber}
-        val parts = chapter.url.split("|")
-        val slug = parts[0]
-        val chapterId = parts[1]
-        val chapterNumber = parts[2]
+    val parts = chapter.url.split("|")
+    val slug = parts[0]
+    val chapterId = parts[1]
+    val chapterNumber = parts[2]
 
-        // chapterNumber may be "1", "1.5", etc. The reader URL uses integer-like format
-        // e.g. ch1-12345 or ch1-5-12345 (decimals become dashes)
-        val chNum = chapterNumber.replace(".", "-")
-        val readerUrl = "$READER_BASE/$slug/ch$chNum-$chapterId"
+    val chNum = chapterNumber.replace(".", "-")
+    val readerUrl = "$READER_BASE/$slug/ch$chNum-$chapterId"
 
-        val response = client.get(readerUrl, headers)
-        val document = response.asJsoup()
+    val response = client.get(readerUrl, headers)
+    val document = response.asJsoup()
 
-        return document.select("img[src*=cdnkomiku.xyz]").mapIndexed { index, img ->
-            Page(index, imageUrl = img.attr("abs:src"))
-        }
+    return document.select("img.rd-page-image").mapIndexed { index, img ->
+        Page(
+            index = index,
+            imageUrl = img.attr("src"),
+        )
     }
+}
 
     override fun getMangaUrl(manga: SManga) = "$baseUrl/komik/${manga.url}/"
 
