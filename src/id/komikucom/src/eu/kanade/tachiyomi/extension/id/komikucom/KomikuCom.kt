@@ -16,7 +16,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 abstract class KomikuCom : KeiSource() {
 
     private val apiBase = "https://01.komiku.asia/api/v2"
-    private val readerBase = "https://api.komiku.asia/read/id"
+    private val readerBase = "$baseUrl/read/id"
     private val pageSize = 20
 
     // ── Popular ───────────────────────────────────────────────────────────────
