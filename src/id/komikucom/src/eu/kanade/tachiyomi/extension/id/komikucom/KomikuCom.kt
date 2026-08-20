@@ -15,8 +15,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 @Source
 abstract class KomikuCom : KeiSource() {
 
-    private val apiBase = "https://01.komiku.asia/api/v2"
-    private val readerBase = "$baseUrl/read/id"
+    private val apiBase = "$baseUrl/api/v2"
+    private val readerBase = "https://api.komiku.asia/read/id"
     private val pageSize = 20
 
     // ── Popular ───────────────────────────────────────────────────────────────
@@ -114,24 +114,14 @@ abstract class KomikuCom : KeiSource() {
         val parts = chapter.url.split("|")
         val slug = parts[0]
         val chapterId = parts[1]
-        val chNum = parts[2].replace(".", "-")
+        val chNum = parts[2].toFloat().let { if (it % 1 == 0f) it.toInt().toString() else it.toString().replace(".", "-") }
         val readerUrl = "$readerBase/$slug/ch$chNum-$chapterId"
 
         val response = client.get(readerUrl, headers)
-        val bodyStr = response.body.string()
-        android.util.Log.d("KomikuCom", "URL: $readerUrl")
-        android.util.Log.d("KomikuCom", "Body500: ${bodyStr.take(500)}")
-        val document = org.jsoup.Jsoup.parse(bodyStr, readerUrl)
+        val document = response.asJsoup()
 
-        val script = document.select("script").joinToString { it.html() }
-        android.util.Log.d("KomikuCom", "ScriptLen: ${script.length}")
-        val match = Regex(""""pages"\s*:\s*(\[.*?\])""", RegexOption.DOT_MATCHES_ALL)
-            .find(script)?.groupValues?.get(1)
-        android.util.Log.d("KomikuCom", "Match: ${match?.take(200)}")
-        if (match == null) return emptyList()
-
-        return match.parseAs<List<PageItem>>().mapIndexed { index, page ->
-            Page(index = index, imageUrl = page.url)
+        return document.select("img.rd-page-image").mapIndexed { index, img ->
+            Page(index = index, imageUrl = img.attr("abs:src"))
         }
     }
 
@@ -141,7 +131,7 @@ abstract class KomikuCom : KeiSource() {
         val parts = chapter.url.split("|")
         val slug = parts[0]
         val chapterId = parts[1]
-        val chapterNumber = parts[2].replace(".", "-")
+        val chapterNumber = parts[2].toFloat().let { if (it % 1 == 0f) it.toInt().toString() else it.toString().replace(".", "-") }
         return "$readerBase/$slug/ch$chapterNumber-$chapterId"
     }
 }
