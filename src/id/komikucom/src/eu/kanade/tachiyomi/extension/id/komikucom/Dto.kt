@@ -4,22 +4,15 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlin.time.Instant
+import java.text.SimpleDateFormat
+import java.util.Locale
 
-// ── Popular / Latest / Search ────────────────────────────────────────────────
+// ── Popular / Latest / Search ─────────────────────────────────────────────────
 
 @Serializable
 class ComicsResponse(
-    val data: List<ComicItem>,
-    val meta: Meta,
-)
-
-@Serializable
-class Meta(
-    @SerialName("total_count") val totalCount: Int,
-    @SerialName("current_page") val currentPage: Int,
-    @SerialName("per_page") val perPage: Int,
-    @SerialName("total_pages") val totalPages: Int,
+    val items: List<ComicItem>,
+    val totalPages: Int,
 )
 
 @Serializable
@@ -27,27 +20,29 @@ class ComicItem(
     val id: Int,
     val slug: String,
     val title: String,
-    @SerialName("cover_image") private val coverImage: String?,
-    private val synopsis: String? = null,
-    private val genres: List<GenreItem>? = null,
+    val coverUrl: String? = null,
+    private val alt: String? = null,
+    private val genres: List<String>? = null,
     private val status: String? = null,
     private val author: String? = null,
+    private val artist: String? = null,
     private val type: String? = null,
+    private val synopsis: String? = null,
 ) {
     fun toSManga() = SManga.create().apply {
         url = slug
         title = this@ComicItem.title
-        thumbnail_url = coverImage
+        thumbnail_url = coverUrl
     }
 
     fun toSMangaFull() = SManga.create().apply {
         url = slug
         title = this@ComicItem.title
-        thumbnail_url = coverImage
-        description = synopsis
+        thumbnail_url = coverUrl
+        description = synopsis ?: alt
         genre = buildList {
             type?.let { add(it) }
-            genres?.forEach { add(it.name) }
+            genres?.forEach { add(it) }
         }.joinToString()
         author = this@ComicItem.author
         this.status = when (this@ComicItem.status?.lowercase()) {
@@ -59,38 +54,29 @@ class ComicItem(
     }
 }
 
-@Serializable
-class GenreItem(val name: String)
-
 // ── Detail ────────────────────────────────────────────────────────────────────
 
-@Serializable
-class ComicDetailResponse(val data: ComicItem)
+// Detail endpoint returns a flat ComicItem directly (no wrapper)
 
-// ── Chapters ─────────────────────────────────────────────────────────────────
+// ── Chapters ──────────────────────────────────────────────────────────────────
 
-@Serializable
-class ChaptersResponse(val data: List<ChapterItem>)
+// Chapters endpoint returns a plain array of ChapterItem
 
 @Serializable
 class ChapterItem(
+    @SerialName("n") private val chapterNumber: Float,
+    private val title: String? = null,
+    private val releasedLabel: String? = null,
     private val id: Int,
-    @SerialName("chapter_number") private val chapterNumber: String,
-    @SerialName("chapter_title") private val chapterTitle: String?,
-    @SerialName("comic_slug") private val comicSlug: String,
-    @SerialName("created_at") private val createdAt: String?,
 ) {
-    fun toSChapter() = SChapter.create().apply {
-        // url encodes both slug and chapter metadata needed to build the reader URL
-        // format: {comicSlug}|{chapterId}|{chapterNumber}
+    fun toSChapter(comicSlug: String) = SChapter.create().apply {
         url = "$comicSlug|$id|$chapterNumber"
-        name = buildString {
-            append("Chapter $chapterNumber")
-            if (!chapterTitle.isNullOrBlank()) append(": $chapterTitle")
-        }
-        date_upload = createdAt?.let {
-            runCatching { Instant.parse(it).toEpochMilliseconds() }.getOrDefault(0L)
+        name = title ?: "Chapter $chapterNumber"
+        date_upload = releasedLabel?.let {
+            runCatching {
+                SimpleDateFormat("d MMM yyyy", Locale.ENGLISH).parse(it)?.time
+            }.getOrNull()
         } ?: 0L
-        chapter_number = chapterNumber.toFloatOrNull() ?: -1f
+        chapter_number = chapterNumber
     }
 }

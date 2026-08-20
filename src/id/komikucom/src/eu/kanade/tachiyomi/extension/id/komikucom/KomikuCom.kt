@@ -33,8 +33,8 @@ abstract class KomikuCom : KeiSource() {
         val response = client.get(url, headers)
         val body = response.parseAs<ComicsResponse>()
         return MangasPage(
-            mangas = body.data.map { it.toSManga() },
-            hasNextPage = page < body.meta.totalPages,
+            mangas = body.items.map { it.toSManga() },
+            hasNextPage = page < body.totalPages,
         )
     }
 
@@ -51,8 +51,8 @@ abstract class KomikuCom : KeiSource() {
         val response = client.get(url, headers)
         val body = response.parseAs<ComicsResponse>()
         return MangasPage(
-            mangas = body.data.map { it.toSManga() },
-            hasNextPage = page < body.meta.totalPages,
+            mangas = body.items.map { it.toSManga() },
+            hasNextPage = page < body.totalPages,
         )
     }
 
@@ -74,8 +74,8 @@ abstract class KomikuCom : KeiSource() {
         val response = client.get(urlBuilder.build(), headers)
         val body = response.parseAs<ComicsResponse>()
         return MangasPage(
-            mangas = body.data.map { it.toSManga() },
-            hasNextPage = page < body.meta.totalPages,
+            mangas = body.items.map { it.toSManga() },
+            hasNextPage = page < body.totalPages,
         )
     }
 
@@ -87,34 +87,23 @@ abstract class KomikuCom : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        val updatedManga: SManga? = if (fetchDetails) {
-            val detailResponse = client.get("$API_BASE/comics/${manga.url}", headers)
-            detailResponse.parseAs<ComicDetailResponse>().data.toSMangaFull()
-        } else {
-            null
-        }
+        val detail: ComicItem? = if (fetchDetails || fetchChapters) {
+            client.get("$API_BASE/comics/${manga.url}", headers).parseAs<ComicItem>()
+        } else null
 
-        val updatedChapters: List<SChapter>? = if (fetchChapters) {
-            val numericId = getNumericId(manga.url)
-            val chapterResponse = client.get("$API_BASE/comics/$numericId/chapters", headers)
-            chapterResponse.parseAs<ChaptersResponse>().data
-                .map { it.toSChapter() }
+        val updatedManga: SManga? = if (fetchDetails) detail?.toSMangaFull() else null
+
+        val updatedChapters: List<SChapter>? = if (fetchChapters && detail != null) {
+            client.get("$API_BASE/comics/${detail.id}/chapters", headers)
+                .parseAs<List<ChapterItem>>()
+                .map { it.toSChapter(manga.url) }
                 .reversed()
-        } else {
-            null
-        }
+        } else null
 
         return SMangaUpdate(
             manga = updatedManga ?: manga,
             chapters = updatedChapters ?: chapters,
         )
-    }
-
-    private suspend fun getNumericId(slug: String): Int {
-        val rawJson = client.get("$API_BASE/comics/$slug", headers).body.string()
-        val match = Regex(""""id"\s*:\s*(\d+)""").find(rawJson)
-        return match?.groupValues?.get(1)?.toInt()
-            ?: throw IllegalStateException("Cannot parse numeric id from detail response")
     }
 
     // ── Pages ─────────────────────────────────────────────────────────────────
