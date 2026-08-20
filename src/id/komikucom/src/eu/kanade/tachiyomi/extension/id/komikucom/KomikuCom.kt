@@ -105,8 +105,8 @@ abstract class KomikuCom : KeiSource() {
         }
 
         return SMangaUpdate(
-            manga = updatedManga,
-            chapters = updatedChapters,
+            manga = updatedManga ?: manga,
+            chapters = updatedChapters ?: chapters,
         )
     }
 
