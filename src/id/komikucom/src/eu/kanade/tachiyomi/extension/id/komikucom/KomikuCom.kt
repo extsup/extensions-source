@@ -119,11 +119,17 @@ abstract class KomikuCom : KeiSource() {
         val readerUrl = "$readerBase/$slug/ch$chNum-$chapterId"
 
         val response = client.get(readerUrl, headers)
-        val document = response.asJsoup()
+        val bodyStr = response.body.string()
+        android.util.Log.d("KomikuCom", "URL: $readerUrl")
+        android.util.Log.d("KomikuCom", "Body500: ${bodyStr.take(500)}")
+        val document = org.jsoup.Jsoup.parse(bodyStr, readerUrl)
 
         val script = document.select("script").joinToString { it.html() }
+        android.util.Log.d("KomikuCom", "ScriptLen: ${script.length}")
         val match = Regex(""""pages"\s*:\s*(\[.*?\])""", RegexOption.DOT_MATCHES_ALL)
-            .find(script)?.groupValues?.get(1) ?: return emptyList()
+            .find(script)?.groupValues?.get(1)
+        android.util.Log.d("KomikuCom", "Match: ${match?.take(200)}")
+        if (match == null) return emptyList()
 
         return match.parseAs<List<PageItem>>().mapIndexed { index, page ->
             Page(index = index, imageUrl = page.url)
