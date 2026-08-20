@@ -96,3 +96,11 @@ class ChapterItem(
         chapter_number = chapterNumber
     }
 }
+
+// ── Pages ────────────────────────────────────────────────────────────────────
+
+@Serializable
+data class PageItem(
+    val index: Int,
+    val url: String,
+)

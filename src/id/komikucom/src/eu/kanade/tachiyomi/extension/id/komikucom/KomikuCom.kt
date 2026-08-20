@@ -118,16 +118,15 @@ abstract class KomikuCom : KeiSource() {
         val chNum = parts[2].replace(".", "-")
         val readerUrl = "$readerBase/$slug/ch$chNum-$chapterId"
 
-        val pageHeaders = headers.newBuilder()
-            .set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-            .set("Accept-Language", "id-ID,id;q=0.9,en;q=0.8")
-            .build()
-
-        val response = client.get(readerUrl, pageHeaders)
+        val response = client.get(readerUrl, headers)
         val document = response.asJsoup()
 
-        return document.select("div.rd-pages img.rd-page-image").mapIndexed { index, img ->
-            Page(index = index, imageUrl = img.attr("abs:src"))
+        val script = document.select("script").joinToString { it.html() }
+        val match = Regex(""""pages"\s*:\s*(\[.*?\])""", RegexOption.DOT_MATCHES_ALL)
+            .find(script)?.groupValues?.get(1) ?: return emptyList()
+
+        return match.parseAs<List<PageItem>>().mapIndexed { index, page ->
+            Page(index = index, imageUrl = page.url)
         }
     }
 
