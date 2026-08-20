@@ -34,8 +34,8 @@ ARTIFACTS_DIR = Path.home() / "apk-artifacts"
 
 # The checked-out `repo` branch we publish into (the working directory).
 REPO_DIR = Path.cwd()
-REPO_APK_DIR = Path("/tmp/apk")
-REPO_JAR_DIR = Path("/tmp/jar")
+REPO_APK_DIR = REPO_DIR / "apk"
+REPO_JAR_DIR = REPO_DIR / "jar"
 REPO_ICON_DIR = REPO_DIR / "icon"
 REPO_APK_DIR.mkdir(parents=True, exist_ok=True)
 REPO_JAR_DIR.mkdir(parents=True, exist_ok=True)
@@ -223,14 +223,8 @@ remote_extensions = {
 
 # Update apkUrl/jarUrl to GitHub Releases URL
 for i, (ext, apk, jar, changed) in enumerate(new_extensions):
-    if changed:
-        tag = get_release_tag(i // ext_per_release)
-        ext.resources.apkUrl = f"{RELEASE_BASE_URL}/{tag}/{apk.name}"
-        ext.resources.jarUrl = f"{RELEASE_BASE_URL}/{tag}/{jar.name}"
-    else:
-        old_resources = remote_extensions[ext.packageName].resources
-        ext.resources.apkUrl = old_resources.apkUrl
-        ext.resources.jarUrl = old_resources.jarUrl
+    ext.resources.apkUrl = f"{APK_BASE_URL}/{apk.name}"
+    ext.resources.jarUrl = f"{JAR_BASE_URL}/{jar.name}"
 
 
 # Merge with the already-published index
