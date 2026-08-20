@@ -87,23 +87,18 @@ abstract class KomikuCom : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        var updatedManga: SManga? = null
-        var updatedChapters: List<SChapter>? = null
-
-        if (fetchDetails) {
+        val updatedManga: SManga? = if (fetchDetails) {
             val detailResponse = client.get("$API_BASE/comics/${manga.url}", headers)
-            updatedManga = detailResponse.parseAs<ComicDetailResponse>().data.toSMangaFull()
-        }
+            detailResponse.parseAs<ComicDetailResponse>().data.toSMangaFull()
+        } else null
 
-        if (fetchChapters) {
-            // The API needs the numeric ID, which we may not have on first call.
-            // Fetch detail (if not already done) to get the numeric id from the slug.
+        val updatedChapters: List<SChapter>? = if (fetchChapters) {
             val numericId = getNumericId(manga.url)
             val chapterResponse = client.get("$API_BASE/comics/$numericId/chapters", headers)
-            updatedChapters = chapterResponse.parseAs<ChaptersResponse>().data
+            chapterResponse.parseAs<ChaptersResponse>().data
                 .map { it.toSChapter() }
-                .reversed() // source returns ascending; app expects descending
-        }
+                .reversed()
+        } else null
 
         return SMangaUpdate(
             manga = updatedManga,
@@ -111,16 +106,11 @@ abstract class KomikuCom : KeiSource() {
         )
     }
 
-    /** Resolves slug → numeric id by fetching the detail endpoint. */
     private suspend fun getNumericId(slug: String): Int {
-        val response = client.get("$API_BASE/comics/$slug", headers)
-        return response.parseAs<ComicDetailResponse>().data.let {
-            // ComicItem exposes id via its own field; re-parse to get it
-            response.parseAs<ComicDetailResponse>().data
-        }.let {
-            // Access via a small inline helper — avoids duplicating the request
-            extractIdFromDetailResponse(response.body.string())
-        }
+        val rawJson = client.get("$API_BASE/comics/$slug", headers).body.string()
+        val match = Regex(""""id"\s*:\s*(\d+)""").find(rawJson)
+        return match?.groupValues?.get(1)?.toInt()
+            ?: throw IllegalStateException("Cannot parse numeric id from detail response")
     }
 
     // ── Pages ─────────────────────────────────────────────────────────────────
@@ -154,21 +144,4 @@ abstract class KomikuCom : KeiSource() {
         val chapterNumber = parts[2].replace(".", "-")
         return "$READER_BASE/$slug/ch$chapterNumber-$chapterId"
     }
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/**
- * Extracts the numeric `id` from the raw JSON string of a detail response.
- * Avoids a second network call by reusing the already-consumed body.
- *
- * Note: body is consumed by parseAs above, so this helper accepts the raw
- * string captured before that call. The caller must capture body.string()
- * before parseAs; see [getNumericId].
- */
-private fun extractIdFromDetailResponse(rawJson: String): Int {
-    // Simple extraction — avoids re-deserializing a full DTO just for one field
-    val match = Regex(""""id"\s*:\s*(\d+)""").find(rawJson)
-    return match?.groupValues?.get(1)?.toInt()
-        ?: throw IllegalStateException("Cannot parse numeric id from detail response")
 }
