@@ -17,19 +17,19 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 @Source
 abstract class KomikuCom : KeiSource() {
 
-    private val API_BASE = "https://01.komiku.asia/api/v2"
-    private val READER_BASE = "https://api.komiku.asia/read/id"
-    private val PAGE_SIZE = 20
+    private val apiBase = "https://01.komiku.asia/api/v2"
+    private val readerBase = "https://api.komiku.asia/read/id"
+    private val pageSize = 20
 
 
     // ── Popular ───────────────────────────────────────────────────────────────
 
     override suspend fun getPopularManga(page: Int): MangasPage {
-        val url = "$API_BASE/comics".toHttpUrl().newBuilder()
+        val url = "$apiBase/comics".toHttpUrl().newBuilder()
             .addQueryParameter("order_by", "views")
             .addQueryParameter("order", "desc")
             .addQueryParameter("page", page.toString())
-            .addQueryParameter("per_page", PAGE_SIZE.toString())
+            .addQueryParameter("per_page", pageSize.toString())
             .build()
 
         val response = client.get(url, headers)
@@ -43,11 +43,11 @@ abstract class KomikuCom : KeiSource() {
     // ── Latest ────────────────────────────────────────────────────────────────
 
     override suspend fun getLatestUpdates(page: Int): MangasPage {
-        val url = "$API_BASE/comics".toHttpUrl().newBuilder()
+        val url = "$apiBase/comics".toHttpUrl().newBuilder()
             .addQueryParameter("order_by", "updated_at")
             .addQueryParameter("order", "desc")
             .addQueryParameter("page", page.toString())
-            .addQueryParameter("per_page", PAGE_SIZE.toString())
+            .addQueryParameter("per_page", pageSize.toString())
             .build()
 
         val response = client.get(url, headers)
@@ -65,9 +65,9 @@ abstract class KomikuCom : KeiSource() {
         query: String,
         filters: FilterList,
     ): MangasPage {
-        val urlBuilder = "$API_BASE/comics".toHttpUrl().newBuilder()
+        val urlBuilder = "$apiBase/comics".toHttpUrl().newBuilder()
             .addQueryParameter("page", page.toString())
-            .addQueryParameter("per_page", PAGE_SIZE.toString())
+            .addQueryParameter("per_page", pageSize.toString())
 
         if (query.isNotBlank()) {
             urlBuilder.addQueryParameter("search", query)
@@ -90,7 +90,7 @@ abstract class KomikuCom : KeiSource() {
         fetchChapters: Boolean,
     ): SMangaUpdate {
         val detail: ComicItem? = if (fetchDetails || fetchChapters) {
-            client.get("$API_BASE/comics/${manga.url}", headers).parseAs<ComicItem>()
+            client.get("$apiBase/comics/${manga.url}", headers).parseAs<ComicItem>()
         } else {
             null
         }
@@ -98,7 +98,7 @@ abstract class KomikuCom : KeiSource() {
         val updatedManga: SManga? = if (fetchDetails) detail?.toSMangaFull() else null
 
         val updatedChapters: List<SChapter>? = if (fetchChapters && detail != null) {
-            client.get("$API_BASE/comics/${detail.id}/chapters", headers)
+            client.get("$apiBase/comics/${detail.id}/chapters", headers)
                 .parseAs<List<ChapterItem>>()
                 .map { it.toSChapter(manga.url) }
         } else {
@@ -120,7 +120,7 @@ abstract class KomikuCom : KeiSource() {
     val chapterNumber = parts[2]
 
     val chNum = chapterNumber.replace(".", "-")
-    val readerUrl = "$READER_BASE/$slug/ch$chNum-$chapterId"
+    val readerUrl = "$readerBase/$slug/ch$chNum-$chapterId"
 
     val response = client.get(readerUrl, headers)
     val document = response.asJsoup()
@@ -133,13 +133,13 @@ abstract class KomikuCom : KeiSource() {
     }
 }
 
-    override fun getMangaUrl(manga: SManga) = "$baseUrl/komik/${manga.url}/"
+    override fun getMangaUrl(manga: SManga) = "$baseUrl/manga/${manga.url}/"
 
     override fun getChapterUrl(chapter: SChapter): String {
         val parts = chapter.url.split("|")
         val slug = parts[0]
         val chapterId = parts[1]
         val chapterNumber = parts[2].replace(".", "-")
-        return "$READER_BASE/$slug/ch$chapterNumber-$chapterId"
+        return "$readerBase/$slug/ch$chapterNumber-$chapterId"
     }
 }
