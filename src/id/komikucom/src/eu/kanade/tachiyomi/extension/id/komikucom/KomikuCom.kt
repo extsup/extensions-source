@@ -89,7 +89,9 @@ abstract class KomikuCom : KeiSource() {
     ): SMangaUpdate {
         val detail: ComicItem? = if (fetchDetails || fetchChapters) {
             client.get("$API_BASE/comics/${manga.url}", headers).parseAs<ComicItem>()
-        } else null
+        } else {
+            null
+        }
 
         val updatedManga: SManga? = if (fetchDetails) detail?.toSMangaFull() else null
 
@@ -98,7 +100,9 @@ abstract class KomikuCom : KeiSource() {
                 .parseAs<List<ChapterItem>>()
                 .map { it.toSChapter(manga.url) }
                 .reversed()
-        } else null
+        } else {
+            null
+        }
 
         return SMangaUpdate(
             manga = updatedManga ?: manga,
