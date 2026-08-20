@@ -112,24 +112,24 @@ abstract class KomikuCom : KeiSource() {
     // ── Pages ─────────────────────────────────────────────────────────────────
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        val parts = chapter.url.split("|")
-        val slug = parts[0]
-        val chapterId = parts[1]
-        val chapterNumber = parts[2]
+    val parts = chapter.url.split("|")
+    val slug = parts[0]
+    val chapterId = parts[1]
+    val chNum = parts[2].replace(".", "-")
+    val readerUrl = "$readerBase/$slug/ch$chNum-$chapterId"
 
-        val chNum = chapterNumber.replace(".", "-")
-        val readerUrl = "$readerBase/$slug/ch$chNum-$chapterId"
+    val pageHeaders = headers.newBuilder()
+        .set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+        .set("Accept-Language", "id-ID,id;q=0.9,en;q=0.8")
+        .build()
 
-        val response = client.get(readerUrl, headers)
-        val document = response.asJsoup()
+    val response = client.get(readerUrl, pageHeaders)
+    val document = response.asJsoup()
 
-        return document.select("img.rd-page-image").mapIndexed { index, img ->
-            Page(
-                index = index,
-                imageUrl = img.attr("src"),
-            )
-        }
+    return document.select("div.rd-pages img.rd-page-image").mapIndexed { index, img ->
+        Page(index = index, imageUrl = img.attr("abs:src"))
     }
+}
 
     override fun getMangaUrl(manga: SManga) = "$baseUrl/manga/${manga.url}/"
 

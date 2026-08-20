@@ -4,7 +4,9 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 // ── Popular / Latest / Search ─────────────────────────────────────────────────
@@ -52,7 +54,6 @@ class ComicItem(
         }.joinToString()
         author = this@ComicItem.author
         artist = this@ComicItem.artist
-        artist = this@ComicItem.artist
         this.status = when (this@ComicItem.status?.lowercase()) {
             "ongoing" -> SManga.ONGOING
             "completed" -> SManga.COMPLETED
@@ -68,6 +69,10 @@ class ComicItem(
 
 // ── Chapters ──────────────────────────────────────────────────────────────────
 
+private val dateFormat by lazy {
+    DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH)
+}
+
 // Chapters endpoint returns a plain array of ChapterItem
 
 @Serializable
@@ -82,8 +87,11 @@ class ChapterItem(
         name = title ?: "Chapter $chapterNumber"
         date_upload = releasedLabel?.let {
             runCatching {
-                SimpleDateFormat("d MMM yyyy", Locale.ENGLISH).parse(it)?.time
-            }.getOrNull()
+                LocalDate.parse(it, dateFormat)
+                    .atStartOfDay()
+                    .toInstant(ZoneOffset.UTC)
+                    .toEpochMilli()
+            }.getOrDefault(0L)
         } ?: 0L
         chapter_number = chapterNumber
     }
