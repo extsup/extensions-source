@@ -13,14 +13,12 @@ import keiyoushi.source.KeiSource
 import keiyoushi.utils.parseAs
 import okhttp3.HttpUrl.Companion.toHttpUrl
 
-
 @Source
 abstract class KomikuCom : KeiSource() {
 
     private val apiBase = "https://01.komiku.asia/api/v2"
     private val readerBase = "https://api.komiku.asia/read/id"
     private val pageSize = 20
-
 
     // ── Popular ───────────────────────────────────────────────────────────────
 
@@ -114,24 +112,24 @@ abstract class KomikuCom : KeiSource() {
     // ── Pages ─────────────────────────────────────────────────────────────────
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-    val parts = chapter.url.split("|")
-    val slug = parts[0]
-    val chapterId = parts[1]
-    val chapterNumber = parts[2]
+        val parts = chapter.url.split("|")
+        val slug = parts[0]
+        val chapterId = parts[1]
+        val chapterNumber = parts[2]
 
-    val chNum = chapterNumber.replace(".", "-")
-    val readerUrl = "$readerBase/$slug/ch$chNum-$chapterId"
+        val chNum = chapterNumber.replace(".", "-")
+        val readerUrl = "$readerBase/$slug/ch$chNum-$chapterId"
 
-    val response = client.get(readerUrl, headers)
-    val document = response.asJsoup()
+        val response = client.get(readerUrl, headers)
+        val document = response.asJsoup()
 
-    return document.select("img.rd-page-image").mapIndexed { index, img ->
-        Page(
-            index = index,
-            imageUrl = img.attr("src"),
-        )
+        return document.select("img.rd-page-image").mapIndexed { index, img ->
+            Page(
+                index = index,
+                imageUrl = img.attr("src"),
+            )
+        }
     }
-}
 
     override fun getMangaUrl(manga: SManga) = "$baseUrl/manga/${manga.url}/"
 
