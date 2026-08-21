@@ -1,7 +1,5 @@
 package eu.kanade.tachiyomi.extension.id.komikucom
 
-import eu.kanade.tachiyomi.source.model.Filter
-import kotlinx.serialization.json.JsonElementList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
