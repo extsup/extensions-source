@@ -14,7 +14,6 @@ import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.asJsoup
 import keiyoushi.lib.cryptoaes.CryptoAES
 import keiyoushi.lib.i18n.Intl
-import keiyoushi.network.CloudflareSolverInterceptor
 import keiyoushi.utils.decodeHex
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -37,12 +36,6 @@ import java.util.Calendar
 import java.util.Locale
 
 abstract class Madara : HttpSource() {
-
-    override val client by lazy {
-        network.client.newBuilder()
-            .addInterceptor(CloudflareSolverInterceptor(network.client))
-            .build()
-    }
 
     protected open val dateFormat: SimpleDateFormat = SimpleDateFormat("MMMM dd, yyyy", Locale.US)
 
