@@ -11,6 +11,7 @@ import keiyoushi.annotation.Source
 import keiyoushi.network.get
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.parseAs
+import eu.kanade.tachiyomi.source.model.Filter
 import okhttp3.HttpUrl.Companion.toHttpUrl
 
 @Source
@@ -71,6 +72,23 @@ abstract class KomikuCom : KeiSource() {
             urlBuilder.addQueryParameter("search", query)
         }
 
+        filters.forEach { filter ->
+            when (filter) {
+                is StatusFilter -> filter.selectedValue().takeIf { it.isNotEmpty() }?.let {
+                    urlBuilder.addQueryParameter("status", it)
+                }
+                is TypeFilter -> filter.selectedValue().takeIf { it.isNotEmpty() }?.let {
+                    urlBuilder.addQueryParameter("type", it)
+                }
+                is OrderFilter -> urlBuilder.addQueryParameter("order_by", filter.selectedValue())
+                is OrderDirFilter -> urlBuilder.addQueryParameter("order", filter.selectedValue())
+                is GenreFilter -> filter.state
+                    .filter { it.state }
+                    .forEach { urlBuilder.addQueryParameter("genre", it.value) }
+                else -> {}
+            }
+        }
+
         val response = client.get(urlBuilder.build(), headers)
         val body = response.parseAs<ComicsResponse>()
         return MangasPage(
@@ -78,6 +96,14 @@ abstract class KomikuCom : KeiSource() {
             hasNextPage = page < body.totalPages,
         )
     }
+
+    override fun getFilterList() = FilterList(
+        OrderFilter(),
+        OrderDirFilter(),
+        StatusFilter(),
+        TypeFilter(),
+        GenreFilter(),
+    )
 
     // ── Details + Chapters ────────────────────────────────────────────────────
 

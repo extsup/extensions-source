@@ -70,7 +70,7 @@ class ComicItem(
 // ── Chapters ──────────────────────────────────────────────────────────────────
 
 private val dateFormat by lazy {
-    DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH)
+    DateTimeFormatter.ofPattern("d MMM yyyy", Locale("id", "ID"))
 }
 
 // Chapters endpoint returns a plain array of ChapterItem
@@ -86,10 +86,13 @@ class ChapterItem(
         url = "$comicSlug|$id|$chapterNumber"
         name = title ?: "Chapter $chapterNumber"
         date_upload = releasedLabel?.let {
-            if (it == "baru saja") {
-                System.currentTimeMillis()
-            } else {
-                runCatching {
+            when {
+                it == "baru saja" -> System.currentTimeMillis()
+                it.endsWith("hari lalu") -> {
+                    val days = it.substringBefore(" hari lalu").trim().toLongOrNull() ?: 0L
+                    System.currentTimeMillis() - days * 86400000L
+                }
+                else -> runCatching {
                     LocalDate.parse(it, dateFormat)
                         .atStartOfDay()
                         .toInstant(ZoneOffset.UTC)
