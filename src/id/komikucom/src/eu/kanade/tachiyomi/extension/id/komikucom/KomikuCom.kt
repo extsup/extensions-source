@@ -79,12 +79,13 @@ abstract class KomikuCom : KeiSource() {
                 }
                 is OrderFilter -> urlBuilder.addQueryParameter("order_by", filter.selectedValue())
                 is OrderDirFilter -> urlBuilder.addQueryParameter("order", filter.selectedValue())
-                is GenreFilter -> filter.state
-                    .filter { it.state }
-                    .map { it.value }
-                    .joinToString(",")
-                    .takeIf { it.isNotEmpty() }
-                    ?.let { urlBuilder.addQueryParameter("genres", it) }
+                is GenreFilter ->
+                    filter.state
+                        .filter { it.state }
+                        .map { it.value }
+                        .joinToString(",")
+                        .takeIf { it.isNotEmpty() }
+                        ?.let { urlBuilder.addQueryParameter("genres", it) }
                 else -> {}
             }
         }
