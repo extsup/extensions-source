@@ -97,7 +97,7 @@ abstract class KomikuCom : KeiSource() {
         )
     }
 
-    override fun getFilterList(data: FilterList?) = FilterList(
+    override fun getFilterList(data: JsonElement?) = FilterList(
         OrderFilter(),
         OrderDirFilter(),
         StatusFilter(),
