@@ -24,18 +24,15 @@ abstract class KomikuCom : KeiSource() {
     // ── Popular ───────────────────────────────────────────────────────────────
 
     override suspend fun getPopularManga(page: Int): MangasPage {
-        val url = "$apiBase/comics".toHttpUrl().newBuilder()
-            .addQueryParameter("order_by", "views")
-            .addQueryParameter("order", "desc")
-            .addQueryParameter("page", page.toString())
-            .addQueryParameter("per_page", pageSize.toString())
+        val url = "$apiBase/comics/popular".toHttpUrl().newBuilder()
+            .addQueryParameter("period", "All Time")
             .build()
 
         val response = client.get(url, headers)
-        val body = response.parseAs<ComicsResponse>()
+        val mangas = response.parseAs<List<ComicItem>>().map { it.toSManga() }
         return MangasPage(
-            mangas = body.items.map { it.toSManga() },
-            hasNextPage = page < body.totalPages,
+            mangas = mangas,
+            hasNextPage = false,
         )
     }
 
@@ -82,10 +79,12 @@ abstract class KomikuCom : KeiSource() {
                 }
                 is OrderFilter -> urlBuilder.addQueryParameter("order_by", filter.selectedValue())
                 is OrderDirFilter -> urlBuilder.addQueryParameter("order", filter.selectedValue())
-                is GenreFilter ->
-                    filter.state
-                        .filter { it.state }
-                        .forEach { urlBuilder.addQueryParameter("genre", it.value) }
+                is GenreFilter -> filter.state
+                    .filter { it.state }
+                    .map { it.value }
+                    .joinToString(",")
+                    .takeIf { it.isNotEmpty() }
+                    ?.let { urlBuilder.addQueryParameter("genres", it) }
                 else -> {}
             }
         }
