@@ -30,12 +30,19 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import rx.Observable
 import uy.kohesive.injekt.injectLazy
+import keiyoushi.network.CloudflareSolverInterceptor
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
 abstract class Madara : HttpSource() {
+
+    override val client by lazy {
+        network.client.newBuilder()
+            .addInterceptor(CloudflareSolverInterceptor(network.client))
+            .build()
+    }
 
     protected open val dateFormat: SimpleDateFormat = SimpleDateFormat("MMMM dd, yyyy", Locale.US)
 

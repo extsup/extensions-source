@@ -5,7 +5,6 @@ import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import keiyoushi.annotation.Source
-import keiyoushi.network.CloudflareSolverInterceptor
 import keiyoushi.network.rateLimit
 import okhttp3.FormBody
 import okhttp3.Request
@@ -27,7 +26,6 @@ abstract class MGKomik : Madara() {
     }
 
     override val client = network.client.newBuilder()
-        .addInterceptor(CloudflareSolverInterceptor(network.client.newBuilder().build()))
         .addInterceptor { chain ->
             val request = chain.request()
             val path = request.url.encodedPath
