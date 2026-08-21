@@ -86,12 +86,16 @@ class ChapterItem(
         url = "$comicSlug|$id|$chapterNumber"
         name = title ?: "Chapter $chapterNumber"
         date_upload = releasedLabel?.let {
-            runCatching {
-                LocalDate.parse(it, dateFormat)
-                    .atStartOfDay()
-                    .toInstant(ZoneOffset.UTC)
-                    .toEpochMilli()
-            }.getOrDefault(0L)
+            if (it == "baru saja") {
+                System.currentTimeMillis()
+            } else {
+                runCatching {
+                    LocalDate.parse(it, dateFormat)
+                        .atStartOfDay()
+                        .toInstant(ZoneOffset.UTC)
+                        .toEpochMilli()
+                }.getOrDefault(0L)
+            }
         } ?: 0L
         chapter_number = chapterNumber
     }
