@@ -14,6 +14,7 @@ import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.asJsoup
 import keiyoushi.lib.cryptoaes.CryptoAES
 import keiyoushi.lib.i18n.Intl
+import keiyoushi.network.CloudflareSolverInterceptor
 import keiyoushi.utils.decodeHex
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,7 +31,6 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import rx.Observable
 import uy.kohesive.injekt.injectLazy
-import keiyoushi.network.CloudflareSolverInterceptor
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.Calendar
