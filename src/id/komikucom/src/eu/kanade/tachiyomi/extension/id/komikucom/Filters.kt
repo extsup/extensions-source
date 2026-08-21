@@ -9,49 +9,54 @@ abstract class SelectFilter(
     fun selectedValue() = options[state].second
 }
 
-class StatusFilter : SelectFilter(
-    "Status",
-    arrayOf(
-        Pair("Semua", ""),
-        Pair("Ongoing", "Ongoing"),
-        Pair("Completed", "Completed"),
-    ),
-)
+class StatusFilter :
+    SelectFilter(
+        "Status",
+        arrayOf(
+            Pair("Semua", ""),
+            Pair("Ongoing", "Ongoing"),
+            Pair("Completed", "Completed"),
+        ),
+    )
 
-class TypeFilter : SelectFilter(
-    "Type",
-    arrayOf(
-        Pair("Semua", ""),
-        Pair("Manga", "Manga"),
-        Pair("Manhwa", "Manhwa"),
-        Pair("Manhua", "Manhua"),
-        Pair("Mangatoon", "Mangatoon"),
-    ),
-)
+class TypeFilter :
+    SelectFilter(
+        "Type",
+        arrayOf(
+            Pair("Semua", ""),
+            Pair("Manga", "Manga"),
+            Pair("Manhwa", "Manhwa"),
+            Pair("Manhua", "Manhua"),
+            Pair("Mangatoon", "Mangatoon"),
+        ),
+    )
 
-class OrderFilter : SelectFilter(
-    "Urutkan",
-    arrayOf(
-        Pair("Views", "views"),
-        Pair("Update Terbaru", "updated_at"),
-        Pair("Ditambahkan", "created_at"),
-    ),
-)
+class OrderFilter :
+    SelectFilter(
+        "Urutkan",
+        arrayOf(
+            Pair("Views", "views"),
+            Pair("Update Terbaru", "updated_at"),
+            Pair("Ditambahkan", "created_at"),
+        ),
+    )
 
-class OrderDirFilter : SelectFilter(
-    "Urutan",
-    arrayOf(
-        Pair("Descending", "desc"),
-        Pair("Ascending", "asc"),
-    ),
-)
+class OrderDirFilter :
+    SelectFilter(
+        "Urutan",
+        arrayOf(
+            Pair("Descending", "desc"),
+            Pair("Ascending", "asc"),
+        ),
+    )
 
 class GenreCheckBox(name: String, val value: String) : Filter.CheckBox(name)
 
-class GenreFilter : Filter.Group<GenreCheckBox>(
-    "Genre",
-    GENRES.map { GenreCheckBox(it.first, it.second) },
-)
+class GenreFilter :
+    Filter.Group<GenreCheckBox>(
+        "Genre",
+        GENRES.map { GenreCheckBox(it.first, it.second) },
+    )
 
 val GENRES = listOf(
     Pair("4-Koma", "4-Koma"),

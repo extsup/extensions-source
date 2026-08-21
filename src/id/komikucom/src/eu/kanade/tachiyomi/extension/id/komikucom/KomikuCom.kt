@@ -11,7 +11,6 @@ import keiyoushi.annotation.Source
 import keiyoushi.network.get
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.parseAs
-import eu.kanade.tachiyomi.source.model.Filter
 import okhttp3.HttpUrl.Companion.toHttpUrl
 
 @Source
@@ -82,9 +81,10 @@ abstract class KomikuCom : KeiSource() {
                 }
                 is OrderFilter -> urlBuilder.addQueryParameter("order_by", filter.selectedValue())
                 is OrderDirFilter -> urlBuilder.addQueryParameter("order", filter.selectedValue())
-                is GenreFilter -> filter.state
-                    .filter { it.state }
-                    .forEach { urlBuilder.addQueryParameter("genre", it.value) }
+                is GenreFilter ->
+                    filter.state
+                        .filter { it.state }
+                        .forEach { urlBuilder.addQueryParameter("genre", it.value) }
                 else -> {}
             }
         }
