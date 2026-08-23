@@ -495,6 +495,14 @@ abstract class Softkomik : HttpSource() {
                     }
                 }
 
+                // Sync cookies from OkHttp to WebView so server can generate token
+                val cookieManager = android.webkit.CookieManager.getInstance()
+                cookieManager.setAcceptCookie(true)
+                client.cookieJar.loadForRequest(baseUrl.toHttpUrl()).forEach { cookie ->
+                    cookieManager.setCookie(baseUrl, "${cookie.name}=${cookie.value}")
+                }
+                cookieManager.flush()
+
                 // Load manga detail page, JS will automatically fire the chapter list API
                 wv.loadUrl(webViewUrl)
             }
