@@ -211,7 +211,7 @@ abstract class Softkomik : HttpSource() {
         val imageSrc = data.imageSrc.ifEmpty {
             val slug = response.request.url.pathSegments[0]
             val chapter = response.request.url.pathSegments[2]
-            val urlApi = "$baseUrl/api/komik/$slug/chapter/$chapter/img?id=${data._id}"
+            val urlApi = "$apiUrl/komik/$slug/chapter/$chapter/imgs/${data._id}"
 
             val token = getBearerTokenFromCookie()
             if (token == null && isRequiredLogin) {
@@ -257,8 +257,11 @@ abstract class Softkomik : HttpSource() {
 
     private fun imageInterceptor(chain: Interceptor.Chain): Response {
         val originalRequest = chain.request()
+        val urlStr = originalRequest.url.toString()
+
+        // Don't normalize UA for apiUrl — token is encoded with original UA including Mobile Safari
         val userAgent = originalRequest.header("User-Agent")
-        val normalizedUserAgent = normalizeUserAgent(userAgent)
+        val normalizedUserAgent = if (urlStr.startsWith(apiUrl)) userAgent else normalizeUserAgent(userAgent)
 
         val request = if (normalizedUserAgent != userAgent) {
             originalRequest.newBuilder()
@@ -533,7 +536,7 @@ abstract class Softkomik : HttpSource() {
     private val requiredLoginGenres = listOf("ecchi", "mature")
     private val sessionKeyChapterList = "chapter-list"
     private val sessionKeyChapterImage = "chapter-image"
-    private val apiUrl = "https://v2.softdevices.my.id"
+    private val apiUrl = "https://api.softkomik.org"
     private val coverUrl = "https://cover.softdevices.my.id/softkomik-cover"
     private val userAgentMobileSafariRegex = Regex("""\s*Mobile Safari/\d+(?:\.\d+)*""", RegexOption.IGNORE_CASE)
     private val cdnUrls = listOf(
