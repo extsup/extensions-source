@@ -365,7 +365,7 @@ abstract class Softkomik : HttpSource() {
         // chapter list API $apiUrl/komik/${manga.url}/chapter?limit=9999999
         val isChapterListRequest = komikIndex != -1 && segments.getOrNull(komikIndex + 2) == "chapter"
         // chapter image API $apiUrl/komik/${manga.url}/chapter/${chapter}/img/${data._id}
-        val isChapterImageRequest = isChapterListRequest && segments.contains("img")
+        val isChapterImageRequest = isChapterListRequest && (segments.contains("img") || segments.contains("imgs"))
 
         val sessionKey = if (isChapterImageRequest) sessionKeyChapterImage else sessionKeyChapterList
 
@@ -481,7 +481,7 @@ abstract class Softkomik : HttpSource() {
                         val url = request.url.toString()
 
                         // Intercept the chapter list API call — it always carries X-Token & X-Sign
-                        if (url.contains(apiUrl) || url.contains("$baseUrl/api/")) {
+                        if (url.contains(apiUrl) || url.contains("v2.softdevices.my.id") || url.contains("$baseUrl/api/")) {
                             val token = request.requestHeaders["X-Token"]
                             val sign = request.requestHeaders["X-Sign"]
 
