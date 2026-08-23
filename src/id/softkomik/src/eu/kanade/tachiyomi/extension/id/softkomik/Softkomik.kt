@@ -474,6 +474,16 @@ abstract class Softkomik : HttpSource() {
                 wv.settings.userAgentString = headers["User-Agent"]
 
                 wv.webViewClient = object : WebViewClient() {
+                    var baseUrlLoaded = false
+
+                    override fun onPageFinished(view: WebView, url: String) {
+                        // After baseUrl loaded and got cookies, load the actual page
+                        if (!baseUrlLoaded) {
+                            baseUrlLoaded = true
+                            view.loadUrl(webViewUrl)
+                        }
+                    }
+
                     override fun shouldInterceptRequest(
                         view: WebView,
                         request: WebResourceRequest,
@@ -495,19 +505,11 @@ abstract class Softkomik : HttpSource() {
                     }
                 }
 
-                // Sync cookies from OkHttp to WebView so server can generate token
-                val cookieManager = android.webkit.CookieManager.getInstance()
-                cookieManager.setAcceptCookie(true)
-                client.cookieJar.loadForRequest(baseUrl.toHttpUrl()).forEach { cookie ->
-                    cookieManager.setCookie(baseUrl, "${cookie.name}=${cookie.value}")
-                }
-                cookieManager.flush()
-
-                // Load manga detail page, JS will automatically fire the chapter list API
-                wv.loadUrl(webViewUrl)
+                // Load baseUrl first to get cookies, then webViewUrl will be loaded in onPageFinished
+                wv.loadUrl(baseUrl)
             }
 
-            latch.await(15, TimeUnit.SECONDS)
+            latch.await(30, TimeUnit.SECONDS)
             handler.post { webView?.destroy() }
 
             val token = capturedToken ?: throw Exception("Gagal mendapatkan session. Coba lagi.")
