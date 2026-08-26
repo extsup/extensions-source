@@ -1,7 +1,5 @@
 package eu.kanade.tachiyomi.extension.id.cgbum
 
-import android.app.Application
-import android.content.SharedPreferences
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.source.ConfigurableSource
@@ -20,11 +18,12 @@ import kotlinx.serialization.json.JsonElement
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
-import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 @Source
-abstract class Cgbum : KeiSource(), ConfigurableSource {
+abstract class Cgbum :
+    KeiSource(),
+    ConfigurableSource {
 
     private val preferences by getPreferencesLazy()
 
@@ -73,13 +72,11 @@ abstract class Cgbum : KeiSource(), ConfigurableSource {
         return MangasPage(mangas, hasNext)
     }
 
-    private fun parseMangaFromElement(el: Element): SManga {
-        return SManga.create().apply {
-            val coverLink = el.selectFirst("a.comic-card-cover")!!
-            setUrlWithoutDomain(coverLink.attr("abs:href"))
-            title = el.selectFirst("h3.comic-card-title a")!!.text()
-            thumbnail_url = coverLink.selectFirst("img")?.attr("abs:src")
-        }
+    private fun parseMangaFromElement(el: Element): SManga = SManga.create().apply {
+        val coverLink = el.selectFirst("a.comic-card-cover")!!
+        setUrlWithoutDomain(coverLink.attr("abs:href"))
+        title = el.selectFirst("h3.comic-card-title a")!!.text()
+        thumbnail_url = coverLink.selectFirst("img")?.attr("abs:src")
     }
 
     override suspend fun fetchMangaUpdate(
