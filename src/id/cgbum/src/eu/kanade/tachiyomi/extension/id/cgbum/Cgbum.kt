@@ -4,6 +4,7 @@ import android.content.SharedPreferences
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.source.ConfigurableSource
+import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -11,6 +12,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import keiyoushi.annotation.Source
+import keiyoushi.network.get
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.firstInstanceOrNull
 import keiyoushi.utils.getPreferencesLazy
@@ -58,8 +60,8 @@ abstract class Cgbum :
             }
             filters.firstInstanceOrNull<GenreGroup>()?.let { group ->
                 // Site only supports up to 3 genres
-                group.state.filter { it.state }.take(3).forEach {
-                    addQueryParameter("genres[]", it.name)
+                group.state.filter { genre -> genre.state }.take(3).forEach { genre ->
+                    addQueryParameter("genres[]", genre.name)
                 }
             }
             addQueryParameter("page", page.toString())
@@ -85,7 +87,7 @@ abstract class Cgbum :
             description = doc.selectFirst("div.comic-synopsis")?.text()
             genre = doc.select("a.genre-pill").joinToString { it.text() }
             author = doc.select("div.meta-row")
-                .firstOrNull { it.selectFirst("span.meta-label")?.text() == "Author" }
+                .firstOrNull { row -> row.selectFirst("span.meta-label")?.text() == "Author" }
                 ?.selectFirst("span.meta-value")
                 ?.text()
             status = doc.selectFirst("span.badge-status")?.text().orEmpty().lowercase().let {
@@ -134,7 +136,7 @@ abstract class Cgbum :
 
     private fun parseMangaList(doc: Document): MangasPage {
         val mangas = doc.select("article.comic-card")
-            .filter { showAdult || it.attr("data-adult") != "1" }
+            .filter { el -> showAdult || el.attr("data-adult") != "1" }
             .map { parseMangaFromElement(it) }
         val hasNext = doc.selectFirst("a.page-nav-next") != null
         return MangasPage(mangas, hasNext)
