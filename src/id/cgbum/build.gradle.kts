@@ -6,12 +6,12 @@ plugins {
 
 keiyoushi {
     name = "CGBUM"
-    versionCode = 1
+    versionCode = 2
     contentWarning = ContentWarning.MIXED
     libVersion = "1.6"
 
     source {
-        name = "Cgbum"
+        name = "CGBUM"
         lang = "id"
         baseUrl = "https://cgbum.com"
     }
