@@ -115,7 +115,7 @@ abstract class Cgbum :
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val doc = client.get(baseUrl + chapter.url).asJsoup()
         return doc.select("div.page-container[data-url]").mapIndexed { index, el ->
-            Page(index, imageUrl = el.attr("data-url"))
+            Page(index, imageUrl = java.net.URLEncoder.encode(el.attr("data-url"), "UTF-8"))
         }
     }
 
