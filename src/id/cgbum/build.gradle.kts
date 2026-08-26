@@ -11,11 +11,8 @@ keiyoushi {
     libVersion = "1.6"
 
     source {
-        baseUrl = "https://cgbum.com"
+        name = "Cgbum"
         lang = "id"
-    }
-
-    deeplink {
-        path("/..*")
+        baseUrl = "https://cgbum.com"
     }
 }

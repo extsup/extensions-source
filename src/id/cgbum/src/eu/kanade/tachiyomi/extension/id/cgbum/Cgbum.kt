@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.extension.id.cgbum
 
+import android.content.SharedPreferences
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.source.ConfigurableSource
@@ -13,43 +14,45 @@ import keiyoushi.annotation.Source
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.firstInstanceOrNull
 import keiyoushi.utils.getPreferencesLazy
-import keiyoushi.utils.setUrlWithoutDomain
 import kotlinx.serialization.json.JsonElement
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
-import uy.kohesive.injekt.api.get
 
 @Source
-abstract class Cgbum :
-    KeiSource(),
-    ConfigurableSource {
+abstract class Cgbum : KeiSource(), ConfigurableSource {
 
-    private val preferences by getPreferencesLazy()
+    private val preferences: SharedPreferences by getPreferencesLazy()
 
     private val showAdult get() = preferences.getBoolean(PREF_SHOW_ADULT, false)
+
+    // ============================== Popular ===============================
 
     override suspend fun getPopularManga(page: Int): MangasPage {
         val doc = client.get("$baseUrl/populer?page=$page").asJsoup()
         return parseMangaList(doc)
     }
 
+    // ============================== Latest ================================
+
     override suspend fun getLatestUpdates(page: Int): MangasPage {
         val doc = client.get("$baseUrl/last-update?page=$page").asJsoup()
         return parseMangaList(doc)
     }
 
+    // ============================== Search ================================
+
     override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
         val url = "$baseUrl/daftar-komik".toHttpUrl().newBuilder().apply {
             if (query.isNotEmpty()) addQueryParameter("search", query)
             filters.firstInstanceOrNull<TypeFilter>()?.let {
-                if (it.state != 0) addQueryParameter("type", it.values[it.state])
+                if (it.state != 0) addQueryParameter("type", it.options[it.state])
             }
             filters.firstInstanceOrNull<StatusFilter>()?.let {
-                if (it.state != 0) addQueryParameter("status", it.values[it.state])
+                if (it.state != 0) addQueryParameter("status", it.options[it.state])
             }
             filters.firstInstanceOrNull<SortFilter>()?.let {
-                addQueryParameter("sort", it.values[it.state])
+                addQueryParameter("sort", it.options[it.state])
             }
             filters.firstInstanceOrNull<GenreGroup>()?.let { group ->
                 // Site only supports up to 3 genres
@@ -64,20 +67,7 @@ abstract class Cgbum :
         return parseMangaList(doc)
     }
 
-    private fun parseMangaList(doc: Document): MangasPage {
-        val mangas = doc.select("article.comic-card")
-            .filter { showAdult || it.attr("data-adult") != "1" }
-            .map { parseMangaFromElement(it) }
-        val hasNext = doc.selectFirst("a.page-nav-next") != null
-        return MangasPage(mangas, hasNext)
-    }
-
-    private fun parseMangaFromElement(el: Element): SManga = SManga.create().apply {
-        val coverLink = el.selectFirst("a.comic-card-cover")!!
-        setUrlWithoutDomain(coverLink.attr("abs:href"))
-        title = el.selectFirst("h3.comic-card-title a")!!.text()
-        thumbnail_url = coverLink.selectFirst("img")?.attr("abs:src")
-    }
+    // ============================== Details + Chapters ====================
 
     override suspend fun fetchMangaUpdate(
         manga: SManga,
@@ -107,7 +97,7 @@ abstract class Cgbum :
 
         val chapterList = doc.select("a.ch-grid-item").map { el ->
             SChapter.create().apply {
-                setUrlWithoutDomain(el.attr("abs:href"))
+                url = el.attr("abs:href").removePrefix(baseUrl)
                 name = el.attr("title").ifEmpty { el.text() }
             }
         }
@@ -115,12 +105,16 @@ abstract class Cgbum :
         return SMangaUpdate(updatedManga, chapterList)
     }
 
+    // ============================== Pages =================================
+
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val doc = client.get(baseUrl + chapter.url).asJsoup()
         return doc.select("div.page-container[data-url]").mapIndexed { index, el ->
             Page(index, imageUrl = el.attr("data-url"))
         }
     }
+
+    // ============================== Misc ==================================
 
     override fun getMangaUrl(manga: SManga) = baseUrl + manga.url
 
@@ -133,6 +127,27 @@ abstract class Cgbum :
         SortFilter(),
         GenreGroup(),
     )
+
+    // ============================== Helpers ===============================
+
+    private fun parseMangaList(doc: Document): MangasPage {
+        val mangas = doc.select("article.comic-card")
+            .filter { showAdult || it.attr("data-adult") != "1" }
+            .map { parseMangaFromElement(it) }
+        val hasNext = doc.selectFirst("a.page-nav-next") != null
+        return MangasPage(mangas, hasNext)
+    }
+
+    private fun parseMangaFromElement(el: Element): SManga {
+        return SManga.create().apply {
+            val coverLink = el.selectFirst("a.comic-card-cover")!!
+            url = coverLink.attr("abs:href").removePrefix(baseUrl)
+            title = el.selectFirst("h3.comic-card-title a")!!.text()
+            thumbnail_url = coverLink.selectFirst("img")?.attr("abs:src")
+        }
+    }
+
+    // ============================== Preferences ===========================
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         SwitchPreferenceCompat(screen.context).apply {
