@@ -75,57 +75,57 @@ abstract class Cgbum :
     // ============================== Details + Chapters ====================
 
     override suspend fun fetchMangaUpdate(
-    manga: SManga,
-    chapters: List<SChapter>,
-    fetchDetails: Boolean,
-    fetchChapters: Boolean,
-): SMangaUpdate {
-    val doc = client.get(baseUrl + manga.url).asJsoup()
+        manga: SManga,
+        chapters: List<SChapter>,
+        fetchDetails: Boolean,
+        fetchChapters: Boolean,
+    ): SMangaUpdate {
+        val doc = client.get(baseUrl + manga.url).asJsoup()
 
-    val updatedManga = SManga.create().apply {
-        title = doc.selectFirst("h1")?.text()
-            ?.removeSuffix(" Bahasa Indonesia")
-            ?: manga.title
-        thumbnail_url = doc.selectFirst("div.comic-cover img")?.attr("abs:src") ?: manga.thumbnail_url
-        description = buildString {
-            append(doc.selectFirst("div.comic-synopsis")?.text().orEmpty())
-            doc.selectFirst("p.comic-alt-title")?.text()?.let {
-                append("\n\nAlt title: $it")
+        val updatedManga = SManga.create().apply {
+            title = doc.selectFirst("h1")?.text()
+                ?.removeSuffix(" Bahasa Indonesia")
+                ?: manga.title
+            thumbnail_url = doc.selectFirst("div.comic-cover img")?.attr("abs:src") ?: manga.thumbnail_url
+            description = buildString {
+                append(doc.selectFirst("div.comic-synopsis")?.text().orEmpty())
+                doc.selectFirst("p.comic-alt-title")?.text()?.let {
+                    append("\n\nAlt title: $it")
+                }
             }
-        }
-        genre = buildString {
-            append(doc.select("a.genre-pill").joinToString { it.text() })
-            doc.select("div.meta-row")
-                .firstOrNull { it.selectFirst("span.meta-label")?.text() == "Tipe" }
+            genre = buildString {
+                append(doc.select("a.genre-pill").joinToString { it.text() })
+                doc.select("div.meta-row")
+                    .firstOrNull { it.selectFirst("span.meta-label")?.text() == "Tipe" }
+                    ?.selectFirst("span.meta-value")
+                    ?.text()
+                    ?.let {
+                        if (isNotEmpty()) append(", ")
+                        append(it)
+                    }
+            }
+            author = doc.select("div.meta-row")
+                .firstOrNull { row -> row.selectFirst("span.meta-label")?.text() == "Author" }
                 ?.selectFirst("span.meta-value")
                 ?.text()
-                ?.let {
-                    if (isNotEmpty()) append(", ")
-                    append(it)
+            status = doc.selectFirst("span.badge-status")?.text().orEmpty().lowercase().let {
+                when {
+                    it.contains("ongoing") -> SManga.ONGOING
+                    it.contains("tamat") || it.contains("completed") -> SManga.COMPLETED
+                    else -> SManga.UNKNOWN
                 }
-        }
-        author = doc.select("div.meta-row")
-            .firstOrNull { row -> row.selectFirst("span.meta-label")?.text() == "Author" }
-            ?.selectFirst("span.meta-value")
-            ?.text()
-        status = doc.selectFirst("span.badge-status")?.text().orEmpty().lowercase().let {
-            when {
-                it.contains("ongoing") -> SManga.ONGOING
-                it.contains("tamat") || it.contains("completed") -> SManga.COMPLETED
-                else -> SManga.UNKNOWN
             }
         }
-    }
 
-    val chapterList = doc.select("a.ch-grid-item").map { el ->
-        SChapter.create().apply {
-            url = el.attr("abs:href").removePrefix(baseUrl)
-            name = el.attr("title").ifEmpty { el.text() }
+        val chapterList = doc.select("a.ch-grid-item").map { el ->
+            SChapter.create().apply {
+                url = el.attr("abs:href").removePrefix(baseUrl)
+                name = el.attr("title").ifEmpty { el.text() }
+            }
         }
-    }
 
-    return SMangaUpdate(updatedManga, chapterList)
-}
+        return SMangaUpdate(updatedManga, chapterList)
+    }
 
     // ============================== Pages =================================
 
