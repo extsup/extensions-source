@@ -20,7 +20,9 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 @Source
-abstract class Cgbum : KeiSource(), ConfigurableSource {
+abstract class Cgbum :
+    KeiSource(),
+    ConfigurableSource {
 
     private val preferences: SharedPreferences by getPreferencesLazy()
 
@@ -138,13 +140,11 @@ abstract class Cgbum : KeiSource(), ConfigurableSource {
         return MangasPage(mangas, hasNext)
     }
 
-    private fun parseMangaFromElement(el: Element): SManga {
-        return SManga.create().apply {
-            val coverLink = el.selectFirst("a.comic-card-cover")!!
-            url = coverLink.attr("abs:href").removePrefix(baseUrl)
-            title = el.selectFirst("h3.comic-card-title a")!!.text()
-            thumbnail_url = coverLink.selectFirst("img")?.attr("abs:src")
-        }
+    private fun parseMangaFromElement(el: Element): SManga = SManga.create().apply {
+        val coverLink = el.selectFirst("a.comic-card-cover")!!
+        url = coverLink.attr("abs:href").removePrefix(baseUrl)
+        title = el.selectFirst("h3.comic-card-title a")!!.text()
+        thumbnail_url = coverLink.selectFirst("img")?.attr("abs:src")
     }
 
     // ============================== Preferences ===========================
