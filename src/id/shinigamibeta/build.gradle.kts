@@ -6,7 +6,7 @@ plugins {
 
 keiyoushi {
     name = "Shinigami Beta"
-    versionCode = 3
+    versionCode = 4
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"
 
@@ -15,5 +15,10 @@ keiyoushi {
         baseUrl {
             custom("https://11.shinigami.asia")
         }
+    }
+
+    deeplink {
+        host("11.shinigami.asia")
+        path("/series/..*")
     }
 }
