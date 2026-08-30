@@ -100,25 +100,25 @@ abstract class ShinigamiBeta :
     }
 
     override fun searchMangaParse(response: Response) = popularMangaParse(response)
-    
+
     override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
-    if (query.startsWith("https://")) {
-        val url = query.toHttpUrlOrNull()
-        if (url != null && url.host == baseUrl.toHttpUrl().host) {
-            val mangaId = url.pathSegments.lastOrNull()
-            if (!mangaId.isNullOrBlank()) {
-                val manga = SManga.create().apply {
-                    this.url = mangaId
-                    initialized = false
+        if (query.startsWith("https://")) {
+            val url = query.toHttpUrlOrNull()
+            if (url != null && url.host == baseUrl.toHttpUrl().host) {
+                val mangaId = url.pathSegments.lastOrNull()
+                if (!mangaId.isNullOrBlank()) {
+                    val manga = SManga.create().apply {
+                        this.url = mangaId
+                        initialized = false
+                    }
+                    return fetchMangaDetails(manga)
+                        .map { MangasPage(listOf(it.apply { this.url = mangaId }), false) }
                 }
-                return fetchMangaDetails(manga)
-                    .map { MangasPage(listOf(it.apply { this.url = mangaId }), false) }
+                throw Exception("Unsupported url")
             }
-            throw Exception("Unsupported url")
         }
+        return super.fetchSearchManga(page, query, filters)
     }
-    return super.fetchSearchManga(page, query, filters)
-}
 
     override fun getFilterList() = FilterList()
 
