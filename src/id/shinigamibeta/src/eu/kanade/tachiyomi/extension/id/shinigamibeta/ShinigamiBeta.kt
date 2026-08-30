@@ -23,9 +23,9 @@ import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
-import rx.Observable
 import okhttp3.Request
 import okhttp3.Response
+import rx.Observable
 
 @Source
 abstract class ShinigamiBeta :
