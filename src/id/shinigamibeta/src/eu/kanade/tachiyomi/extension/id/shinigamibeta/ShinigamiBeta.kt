@@ -143,6 +143,7 @@ abstract class ShinigamiBeta :
 
         return SManga.create().apply {
             title = dto["title"]?.jsonPrimitive?.content.orEmpty()
+            thumbnail_url = dto["cover_image_url"]?.jsonPrimitive?.content
             author = taxNames("Author")
             artist = taxNames("Artist")
             status = when (dto["status"]?.jsonPrimitive?.intOrNull) {
