@@ -4,6 +4,16 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+
+@Serializable
+class EncryptedPayloadDto(
+    val status: Boolean,
+    val encrypted: Boolean? = null,
+    val time: Long? = null,
+    val data: JsonElement,
+    val meta: MetaDto? = null,
+)
 
 @Serializable
 class PayloadDto<T>(
@@ -75,11 +85,8 @@ class ChapterDto(
     fun toSChapter() = SChapter.create().apply {
         url = slug
         val releaseTime = (scheduledReleaseAt?.time ?: createdAt?.time ?: 0L) * 1000L
-        // Lock logic disabled: despite being marked as premium/locked on the website,
-        // locked chapters can still be fetched directly from the backend API without authorization.
-        // val isLocked = releaseTime > 0L && (System.currentTimeMillis() - releaseTime < 2 * 60 * 60 * 1000L)
-        // name = if (isLocked) "🔒 $title" else title
-        name = title
+        val isLocked = releaseTime > 0L && (System.currentTimeMillis() - releaseTime < 2 * 60 * 60 * 1000L)
+        name = if (isLocked) "🔒 $title" else title
         chapter_number = number.toFloatOrNull() ?: -1f
         date_upload = releaseTime
     }
