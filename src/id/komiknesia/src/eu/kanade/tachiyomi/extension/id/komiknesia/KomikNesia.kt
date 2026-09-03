@@ -72,10 +72,11 @@ abstract class KomikNesia : HttpSource() {
             decryptData(payload.data.jsonPrimitive.content, payload.time)
         } else {
             """{"data":${payload.data},"meta":${
-                if (payload.meta != null)
+                if (payload.meta != null) {
                     """{"page":${payload.meta.page},"total_pages":${payload.meta.totalPages}}"""
-                else
+                } else {
                     "null"
+                }
             }}"""
         }
     }
@@ -84,21 +85,17 @@ abstract class KomikNesia : HttpSource() {
     // Popular
     // ===============================
 
-    override fun popularMangaRequest(page: Int): Request =
-        searchMangaRequest(page, "", FilterList(OrderFilter().apply { state = 2 }))
+    override fun popularMangaRequest(page: Int): Request = searchMangaRequest(page, "", FilterList(OrderFilter().apply { state = 2 }))
 
-    override fun popularMangaParse(response: Response): MangasPage =
-        searchMangaParse(response)
+    override fun popularMangaParse(response: Response): MangasPage = searchMangaParse(response)
 
     // ===============================
     // Latest
     // ===============================
 
-    override fun latestUpdatesRequest(page: Int): Request =
-        searchMangaRequest(page, "", FilterList(OrderFilter().apply { state = 0 }))
+    override fun latestUpdatesRequest(page: Int): Request = searchMangaRequest(page, "", FilterList(OrderFilter().apply { state = 0 }))
 
-    override fun latestUpdatesParse(response: Response): MangasPage =
-        searchMangaParse(response)
+    override fun latestUpdatesParse(response: Response): MangasPage = searchMangaParse(response)
 
     // ===============================
     // Search
@@ -148,8 +145,7 @@ abstract class KomikNesia : HttpSource() {
     // Details
     // ===============================
 
-    override fun mangaDetailsRequest(manga: SManga): Request =
-        GET("$apiUrl/comic/${manga.url}", headers)
+    override fun mangaDetailsRequest(manga: SManga): Request = GET("$apiUrl/comic/${manga.url}", headers)
 
     override fun mangaDetailsParse(response: Response): SManga {
         val body = response.decryptedBody()
@@ -177,22 +173,20 @@ abstract class KomikNesia : HttpSource() {
     // Pages
     // ===============================
 
-    override fun pageListRequest(chapter: SChapter): Request =
-        GET("$apiUrl/chapters/slug/${chapter.url}", headers)
+    override fun pageListRequest(chapter: SChapter): Request = GET("$apiUrl/chapters/slug/${chapter.url}", headers)
 
     override fun pageListParse(response: Response): List<Page> {
-    val body = response.decryptedBody()
-    val payload = json.decodeFromString<PayloadDto<PageListDto>>(body)
-    if (payload.data.images.isEmpty()) {
-        throw Exception("Chapter terbaru dapat dibaca setelah login melalui WebView, atau tunggu hingga 2 jam dari rilis untuk membaca tanpa login.")
+        val body = response.decryptedBody()
+        val payload = json.decodeFromString<PayloadDto<PageListDto>>(body)
+        if (payload.data.images.isEmpty()) {
+            throw Exception("Chapter terbaru dapat dibaca setelah login melalui WebView, atau tunggu hingga 2 jam dari rilis untuk membaca tanpa login.")
+        }
+        return payload.data.images.mapIndexed { idx, img ->
+            Page(idx, imageUrl = img)
+        }
     }
-    return payload.data.images.mapIndexed { idx, img ->
-        Page(idx, imageUrl = img)
-    }
-}
 
-    override fun imageUrlParse(response: Response): String =
-        throw UnsupportedOperationException()
+    override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 
     // ===============================
     // Filters
