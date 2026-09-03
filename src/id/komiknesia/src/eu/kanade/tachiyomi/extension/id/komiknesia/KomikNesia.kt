@@ -42,46 +42,47 @@ abstract class KomikNesia : HttpSource() {
     // Decrypt
     // ===============================
 
-private fun generateDeviceId(): String {
-    val rand = (Math.random() * 0xFFFFFFFFL).toLong()
-        .toString(16).padStart(8, '0').take(8)
-    val ts = (System.currentTimeMillis() / 1000)
-        .toString(16).takeLast(6)
-    return "dv_$rand$ts"
-}
-
-private fun generateKey(time: Long): String {
-    var r = time.toDouble()
-    repeat(5) { r /= 2 }
-    return String.format(Locale.US, "%.8f", r)
-        .padEnd(32, '0')
-        .take(32)
-}
-
-private fun decryptData(encryptedData: String, time: Long): String {
-    val key = generateKey(time)
-    val raw = Base64.decode(encryptedData, Base64.DEFAULT)
-    val iv = raw.copyOfRange(0, 16)
-    val cipherText = raw.copyOfRange(16, raw.size)
-    val secretKey = SecretKeySpec(key.toByteArray(), "AES")
-    val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
-    cipher.init(Cipher.DECRYPT_MODE, secretKey, IvParameterSpec(iv))
-    return String(cipher.doFinal(cipherText))
-}
-
-private fun Response.decryptedBody(): String {
-    val payload = parseAs<EncryptedPayloadDto>()
-    return if (payload.encrypted == true && payload.time != null) {
-        decryptData(payload.data.jsonPrimitive.content, payload.time)
-    } else {
-        """{"data":${payload.data},"meta":${
-            if (payload.meta != null)
-                """{"page":${payload.meta.page},"total_pages":${payload.meta.totalPages}}"""
-            else
-                "null"
-        }}"""
+    private fun generateDeviceId(): String {
+        val rand = (Math.random() * 0xFFFFFFFFL).toLong()
+            .toString(16).padStart(8, '0').take(8)
+        val ts = (System.currentTimeMillis() / 1000)
+            .toString(16).takeLast(6)
+        return "dv_$rand$ts"
     }
-}
+
+    private fun generateKey(time: Long): String {
+        var r = time.toDouble()
+        repeat(5) { r /= 2 }
+        return String.format(Locale.US, "%.8f", r)
+            .padEnd(32, '0')
+            .take(32)
+    }
+
+    private fun decryptData(encryptedData: String, time: Long): String {
+        val key = generateKey(time)
+        val raw = Base64.decode(encryptedData, Base64.DEFAULT)
+        val iv = raw.copyOfRange(0, 16)
+        val cipherText = raw.copyOfRange(16, raw.size)
+        val secretKey = SecretKeySpec(key.toByteArray(), "AES")
+        val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
+        cipher.init(Cipher.DECRYPT_MODE, secretKey, IvParameterSpec(iv))
+        return String(cipher.doFinal(cipherText))
+    }
+
+    private fun Response.decryptedBody(): String {
+        val payload = parseAs<EncryptedPayloadDto>()
+        return if (payload.encrypted == true && payload.time != null) {
+            decryptData(payload.data.jsonPrimitive.content, payload.time)
+        } else {
+            """{"data":${payload.data},"meta":${
+                if (payload.meta != null) {
+                    """{"page":${payload.meta.page},"total_pages":${payload.meta.totalPages}}"""
+                } else {
+                    "null"
+                }
+            }}"""
+        }
+    }
 
     // ===============================
     // Popular
