@@ -8,9 +8,9 @@ import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.SManga
-import eu.kanade.tachiyomi.util.asJsoup
 import keiyoushi.annotation.Source
 import keiyoushi.network.post
+import keiyoushi.utils.asJsoup
 import keiyoushi.utils.firstInstanceOrNull
 import kotlinx.serialization.json.JsonElement
 import okhttp3.FormBody
@@ -107,8 +107,6 @@ abstract class HentaiFox : GalleryAdults() {
     private fun Element.sidebarMangaUrl() = selectFirst("a")?.attr("abs:href")
 
     private fun Element.sidebarMangaThumbnail() = selectFirst("img")?.imgAttr()
-
-    override fun tagsParser(document: Document) = super.tagsParser(document)
 
     private var csrfToken: String? = null
 
