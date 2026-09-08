@@ -12,7 +12,7 @@ keiyoushi {
 
     source {
         lang = "id"
-        baseUrl = "https://02.cosmicscans.to"
+        baseUrl = "https://04.cosmicscans.to"
         id = 6559481336553833282L
     }
 }
