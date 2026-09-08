@@ -189,6 +189,13 @@ abstract class KomikNesia : HttpSource() {
         }
     }
 
+    override fun imageRequest(page: Page): Request {
+        val imageHeaders = headersBuilder()
+            .set("Accept", "image/webp,image/apng,image/*,*/*;q=0.8")
+            .build()
+        return GET(page.imageUrl!!, imageHeaders)
+    }
+
     override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 
     // ===============================
