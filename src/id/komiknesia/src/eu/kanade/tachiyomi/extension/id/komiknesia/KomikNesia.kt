@@ -181,6 +181,11 @@ abstract class KomikNesia : HttpSource() {
     override fun pageListParse(response: Response): List<Page> {
         val body = response.decryptedBody()
         val payload = json.decodeFromString<PayloadDto<PageListDto>>(body)
+        val cfCookie = client.cookieJar.loadForRequest("https://data.cdnesia.my.id/".toHttpUrl())
+            .any { it.name == "cf_clearance" }
+        if (!cfCookie) {
+            throw Exception("Buka chapter ini di WebView terlebih dahulu untuk melewati verifikasi Cloudflare.")
+        }
         if (payload.data.images.isEmpty()) {
             throw Exception("Chapter terbaru dapat dibaca setelah login melalui WebView, atau tunggu hingga 2 jam dari rilis untuk membaca tanpa login.")
         }
