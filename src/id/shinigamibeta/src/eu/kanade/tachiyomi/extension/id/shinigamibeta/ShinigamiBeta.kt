@@ -49,7 +49,6 @@ abstract class ShinigamiBeta :
         get() = headersBuilder()
             .add("Accept", "application/json")
             .add("DNT", "1")
-            .add("Origin", baseUrl)
             .add("Sec-GPC", "1")
             .build()
 
