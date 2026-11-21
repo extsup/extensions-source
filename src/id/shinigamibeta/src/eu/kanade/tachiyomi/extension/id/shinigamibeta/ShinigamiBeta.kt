@@ -15,6 +15,7 @@ import keiyoushi.network.rateLimit
 import keiyoushi.utils.getPreferencesLazy
 import keiyoushi.utils.parseAs
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
@@ -170,26 +171,50 @@ abstract class ShinigamiBeta :
         }
     }
 
-    // ============================== Chapters ==============================
+        // ============================== Chapters ==============================
 
-    override fun chapterListRequest(manga: SManga) = GET("$apiUrl/v1/chapter/${manga.url}/list?page_size=3000", apiHeaders)
+    override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> = Observable.fromCallable {
+        if (manga.url.startsWith("/series/")) throw Exception("Migrate dari $name ke $name (ekstensi yang sama)")
 
-    override fun chapterListParse(response: Response): List<SChapter> = response.parseAs<JsonObject>()["data"]!!.jsonArray.map { el ->
-        val obj = el.jsonObject
-        SChapter.create().apply {
-            date_upload = try {
-                java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.ENGLISH)
-                    .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
-                    .parse(obj["release_date"]?.jsonPrimitive?.content ?: "")?.time ?: 0L
-            } catch (_: Exception) {
-                0L
-            }
-            val num = obj["chapter_number"]?.jsonPrimitive?.doubleOrNull
-                ?.toString()?.removeSuffix(".0") ?: ""
-            val title = obj["chapter_title"]?.jsonPrimitive?.content
-            name = "Chapter $num${if (!title.isNullOrBlank()) " $title" else ""}".trim()
-            url = obj["chapter_id"]!!.jsonPrimitive.content
+        val chapters = mutableListOf<SChapter>()
+        var cursor: String? = null
+        val seenCursors = mutableSetOf<String>()
+
+        while (true) {
+            val url = "$apiUrl/v1/chapter/${manga.url}/list".toHttpUrl().newBuilder()
+                .apply { cursor?.let { addQueryParameter("cursor", it) } }
+                .build()
+
+            val root = client.newCall(GET(url, apiHeaders)).execute().use { it.parseAs<JsonObject>() }
+            chapters += root["data"]!!.jsonArray.map { chapterFromJson(it.jsonObject) }
+
+            val meta = root["meta"]?.jsonObject
+            val hasNext = meta?.get("has_next")?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
+            cursor = meta?.get("next_cursor")?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+
+            if (!hasNext || cursor == null || !seenCursors.add(cursor)) break
         }
+
+        chapters
+    }
+
+    override fun chapterListRequest(manga: SManga) = GET("$apiUrl/v1/chapter/${manga.url}/list", apiHeaders)
+
+    override fun chapterListParse(response: Response): List<SChapter> = response.parseAs<JsonObject>()["data"]!!.jsonArray.map { chapterFromJson(it.jsonObject) }
+
+    private fun chapterFromJson(obj: JsonObject): SChapter = SChapter.create().apply {
+        date_upload = try {
+            java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.ENGLISH)
+                .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+                .parse(obj["release_date"]?.jsonPrimitive?.content ?: "")?.time ?: 0L
+        } catch (_: Exception) {
+            0L
+        }
+        val num = obj["chapter_number"]?.jsonPrimitive?.doubleOrNull
+            ?.toString()?.removeSuffix(".0") ?: ""
+        val title = obj["chapter_title"]?.jsonPrimitive?.content
+        name = "Chapter $num${if (!title.isNullOrBlank()) " $title" else ""}".trim()
+        url = obj["chapter_id"]!!.jsonPrimitive.content
     }
 
     // ============================== Pages =================================
