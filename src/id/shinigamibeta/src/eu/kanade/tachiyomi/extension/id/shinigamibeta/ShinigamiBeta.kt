@@ -15,7 +15,6 @@ import keiyoushi.network.rateLimit
 import keiyoushi.utils.getPreferencesLazy
 import keiyoushi.utils.parseAs
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
@@ -33,7 +32,7 @@ abstract class ShinigamiBeta :
     HttpSource(),
     ConfigurableSource {
 
-    private val apiUrl = "https://api.shngm.io"
+    private val apiUrl = "https://api.shinigami.io"
 
     override val supportsLatest = true
 
@@ -57,8 +56,8 @@ abstract class ShinigamiBeta :
 
     private fun mangaListRequest(page: Int, sort: String) = GET(
         "$apiUrl/v1/manga/list".toHttpUrl().newBuilder()
-            .addQueryParameter("page", page.toString())
-            .addQueryParameter("page_size", "30")
+            .addQueryParameter("offset", ((page - 1) * 30).toString())
+            .addQueryParameter("limit", "30")
             .addQueryParameter("sort", sort)
             .build(),
         apiHeaders,
@@ -85,8 +84,7 @@ abstract class ShinigamiBeta :
                 url = obj["manga_id"]!!.jsonPrimitive.content
             }
         }
-        val hasNext = meta?.get("has_next")?.jsonPrimitive?.booleanOrNull
-            ?: (rawData.size >= 30)
+        val hasNext = meta?.get("has_next")?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
         return MangasPage(mangas, hasNext)
     }
 
@@ -96,8 +94,8 @@ abstract class ShinigamiBeta :
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         val url = "$apiUrl/v1/manga/list".toHttpUrl().newBuilder()
-            .addQueryParameter("page", page.toString())
-            .addQueryParameter("page_size", "30")
+            .addQueryParameter("offset", ((page - 1) * 30).toString())
+            .addQueryParameter("limit", "30")
         if (query.isNotEmpty()) url.addQueryParameter("q", query)
         return GET(url.build(), apiHeaders)
     }
