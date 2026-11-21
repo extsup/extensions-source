@@ -171,7 +171,7 @@ abstract class ShinigamiBeta :
         }
     }
 
-        // ============================== Chapters ==============================
+    // ============================== Chapters ==============================
 
     override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> = Observable.fromCallable {
         if (manga.url.startsWith("/series/")) throw Exception("Migrate dari $name ke $name (ekstensi yang sama)")
